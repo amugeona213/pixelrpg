@@ -2,7 +2,7 @@
 
 전사·마법사·궁수로 밤의 숲을 지나는 2D 횡스크롤 액션 RPG. 브라우저에서 바로 해요.
 
-**지금 하기: https://<아이디>.github.io/pixelrpg/** (PC·휴대폰·태블릿)
+**지금 하기: https://amugeona213.github.io/pixelrpg/** (PC·휴대폰·태블릿, 설치 없이 브라우저에서)
 
 ## 조작
 - PC: ← → 이동, ↑/Space 점프, J 공격, K 스킬, Esc 일시정지

@@ -1,0 +1,17 @@
+{
+  "name": "픽셀 원정대",
+  "short_name": "픽셀 원정대",
+  "description": "전사·마법사·궁수로 밤의 숲을 지나는 2D 횡스크롤 액션 RPG",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07060b",
+  "theme_color": "#07060b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

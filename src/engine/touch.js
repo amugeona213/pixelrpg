@@ -1,8 +1,8 @@
 // 터치 화면용 조작 버튼 (휴대폰·태블릿). HTML 버튼을 게임 화면 위에 올려요.
 //   왼쪽: ◀ ▶ 이동 패드 (손가락을 떼지 않고 좌우로 미끄러져도 돼요)
-//   오른쪽: 스킬 · 공격 · 점프
+//   오른쪽: 조사(대화) · 공격 · 점프
 //   위: 일시정지, 전체화면
-//   장면마다 바뀌는 메뉴 버튼: 직업 선택 / 일시정지 / 게임 끝
+//   장면마다 바뀌는 메뉴 버튼: 캐릭터 고르기 (대화창·메뉴는 화면을 직접 눌러요)
 // 터치 기기에서만 보여요 (마우스·키보드로 하면 숨어요).
 
 import { input } from "./input.js";
@@ -15,10 +15,7 @@ const capture = (el, id) => {
 };
 
 const MENUS = {
-  title: [["◀", "left"], ["시작", "confirm", "primary"], ["▶", "right"]],
-  paused: [["계속하기", "pause", "primary"], ["처음부터", "restart"], ["직업 선택", "menu"]],
-  over: [["다시 하기", "restart", "primary"], ["직업 선택", "menu"]],
-  clear: [["다시 하기", "restart", "primary"], ["직업 선택", "menu"]],
+  create: [["◀", "left"], ["결정", "confirm", "primary"], ["▶", "right"]],
   play: [],
 };
 
@@ -29,7 +26,7 @@ export function createTouchUI(root) {
         <span class="t-pad-l">◀</span><span class="t-pad-r">▶</span>
       </div>
       <div class="t-actions">
-        <button class="t-btn t-skill" data-hold="skill" aria-label="스킬"><span class="t-label">스킬</span><span class="t-cd"></span></button>
+        <button class="t-btn t-skill t-talk" data-hold="interact" aria-label="조사"><span class="t-label">조사</span><span class="t-cd"></span></button>
         <button class="t-btn t-attack" data-hold="attack" aria-label="공격"><span class="t-label">공격</span></button>
         <button class="t-btn t-jump" data-hold="jump" aria-label="점프"><span class="t-label">점프</span></button>
       </div>
@@ -155,6 +152,10 @@ export function createTouchUI(root) {
       skillBtn.style.setProperty("--cd", k.toFixed(3));
       cdEl.textContent = left > 0.05 ? left.toFixed(1) : "";
       skillBtn.classList.toggle("cooling", left > 0.05);
+    },
+    /** 말 걸 수 있는 NPC 가 가까이 있으면 조사 버튼을 반짝여요. */
+    setNear(on) {
+      skillBtn.classList.toggle("near", !!on);
     },
     setLabels(attack, skill) {
       root.querySelector(".t-attack .t-label").textContent = attack;

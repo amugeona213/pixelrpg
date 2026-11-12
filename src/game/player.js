@@ -1,30 +1,42 @@
-// 플레이어: 이동, 점프, 기본 공격(J), 스킬(K). 공격 동작은 pixelfx 의 act 를 재생해요.
+// 주인공: 이동, 점프, 칼 공격. 그림은 hero.js 의 픽셀 스프라이트, 공격의 타이밍·히트스톱·베기 이펙트는 pixelfx 의 sword-slash 동작을 써요.
+// 태생 특성(profile.js bodyMods)이 속도·점프·체력·피해에 조금씩 영향을 줘요.
 
-import { createAct } from "../engine/px.js";
+import { createAct, swordSlash } from "../engine/px.js";
 import { input } from "../engine/input.js";
-import { drawBody, drawShadow, runPose, idlePose, jumpPose } from "../engine/body.js";
+import { drawShadow } from "../engine/body.js";
+import { drawSprite } from "../engine/sprite.js";
 import { GROUND_Y, PLAYER_INVULN } from "../config.js";
 import { moveBody, approach } from "./physics.js";
+import { heroFrame } from "./hero.js";
+import { bodyMods } from "./profile.js";
+import { platformAt } from "./level.js";
 
-/** 투사체를 쏘는 동작은 자세만 빌려 써요 (원래 이펙트의 화살·불덩이는 빼고, 게임이 직접 쏴요). */
-function posesOnly(mod) {
-  return { meta: mod.meta, act: { poses: mod.act.poses, hits: [] }, draw() {} };
-}
+export const BASE = { hp: 100, speed: 78, jump: 252 };
+
+// 견습생의 낡은 검: 베기 (M2 에서 무기별 공격으로 바뀌어요)
+export const OLD_SWORD = {
+  name: "베기", mod: swordSlash, speed: 1.6, endT: 0.42, cooldown: 0.05,
+  damage: 14, knock: 120, hitbox: { x0: -2, x1: 44, y0: -44, y1: 4 },
+};
 
 export class Player {
-  constructor(cls, x) {
+  constructor(profile, x) {
+    const m = bodyMods(profile);
     Object.assign(this, {
-      cls, x, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true,
-      hp: cls.hp, maxHp: cls.hp, invuln: 0, hurtT: 0, flash: 0, time: 0,
-      action: null, cd: { attack: 0, skill: 0 }, dead: false, deadT: 0,
+      profile, mods: m, x, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true,
+      maxHp: Math.round(BASE.hp * m.hp), speed: BASE.speed * m.speed, jumpV: BASE.jump * m.jump,
+      invuln: 0, hurtT: 0, flash: 0, time: 0, action: null, cd: { attack: 0 }, dead: false, deadT: 0,
+      locked: false, // 대화 중에는 못 움직여요
     });
+    // 맵을 옮겨도 체력은 이어져요 (쓰러졌다 일어나면 가득)
+    this.hp = Math.max(1, Math.min(this.maxHp, profile.hp ?? this.maxHp));
   }
 
   get alive() { return !this.dead; }
-  /** 공격이 맞는 순간 잠깐 멈춤(히트스톱) 중인지. 이때는 세상 전체가 멈춰요. */
   get frozen() { return !!this.action?.act.frozen; }
   get shake() { return this.action ? this.action.act.shake : [0, 0]; }
-  box() { return { x0: this.x - 6, x1: this.x + 6, y0: this.y - 34, y1: this.y }; }
+  box() { return { x0: this.x - 7, x1: this.x + 7, y0: this.y - 38, y1: this.y }; }
+  get standingOn() { return this.onGround ? platformAt(this.x, this.y) : null; }
 
   update(dt, world) {
     this.time += dt;
@@ -32,7 +44,6 @@ export class Player {
     this.hurtT = Math.max(0, this.hurtT - dt);
     this.flash = Math.max(0, this.flash - dt);
     this.cd.attack = Math.max(0, this.cd.attack - dt);
-    this.cd.skill = Math.max(0, this.cd.skill - dt);
 
     if (this.dead) {
       this.deadT += dt;
@@ -40,53 +51,47 @@ export class Player {
       moveBody(this, dt);
       return;
     }
-
-    const want = this.hurtT > 0 ? 0 : (input.held("right") ? 1 : 0) - (input.held("left") ? 1 : 0);
+    const ctl = !this.locked && this.hurtT <= 0;
+    const want = ctl ? (input.held("right") ? 1 : 0) - (input.held("left") ? 1 : 0) : 0;
     if (this.action && this.onGround) this.vx = approach(this.vx, 0, 900 * dt);
     else {
-      this.vx = approach(this.vx, want * this.cls.speed, (this.onGround ? 900 : 520) * dt);
+      this.vx = approach(this.vx, want * this.speed, (this.onGround ? 900 : 520) * dt);
       if (want && !this.action) this.facing = want;
     }
 
-    if (!this.action && this.hurtT <= 0) {
+    if (ctl && !this.action) {
       if (input.hit("jump") && this.onGround) {
-        this.vy = -this.cls.jump;
+        this.vy = -this.jumpV;
         this.onGround = false;
+        world.count("jumps");
       }
-      if (input.hit("attack") && this.cd.attack <= 0) this.start("attack", world);
-      else if (input.hit("skill") && this.cd.skill <= 0) this.start("skill", world);
+      if (input.hit("attack") && this.cd.attack <= 0) this.attack(world);
     }
     // 점프 키를 일찍 떼면 낮게 뛰어요
     if (!this.onGround && this.vy < -60 && !input.held("jump")) this.vy += 900 * dt;
 
     moveBody(this, dt);
-    if (this.action) this.updateAction(dt, world);
+    if (this.action) this.updateAction(dt);
   }
 
-  start(slot, world) {
-    const def = this.cls[slot];
-    this.cd[slot] = def.cooldown;
-    const mod = def.kind === "melee" ? def.mod : posesOnly(def.mod);
-    const act = createAct(mod, { x: this.x, y: this.y, flip: this.facing < 0, seed: 1 + Math.floor(Math.random() * 999) });
-    if (def.kind === "melee") act.onHit = () => world.meleeHit(this, def);
-    this.action = { slot, def, act, released: false };
+  attack(world) {
+    const def = OLD_SWORD;
+    this.cd.attack = def.cooldown;
+    const act = createAct(def.mod, { x: this.x, y: this.y, flip: this.facing < 0, seed: 1 + Math.floor(Math.random() * 999) });
+    act.onHit = () => world.meleeHit(this, def);
+    this.action = { def, act, speed: def.speed * this.mods.atkSpeed };
+    world.count("swings");
   }
 
-  updateAction(dt, world) {
+  updateAction(dt) {
     const a = this.action;
     a.act.fx.options.x = Math.round(this.x); // 이펙트가 캐릭터를 따라다녀요 (공중 공격)
     a.act.fx.options.y = Math.round(this.y);
-    a.act.update(dt * a.def.speed);
-    if (a.def.kind === "cast" && !a.released && a.act.t >= a.def.releaseT) {
-      a.released = true;
-      world.fire(this, a.def);
-    }
+    a.act.update(dt * a.speed);
     if (a.act.t >= a.def.endT && !a.act.frozen) this.action = null;
   }
-
-  /** 히트스톱 중에는 동작 시계만 돌려요 (멈춤 시간이 줄어들어요). */
   updateFrozen(dt) {
-    this.action.act.update(dt * this.action.def.speed);
+    this.action.act.update(dt * this.action.speed);
   }
 
   hurt(dmg, dir) {
@@ -95,35 +100,33 @@ export class Player {
     this.invuln = PLAYER_INVULN;
     this.hurtT = 0.28;
     this.flash = 0.08;
-    this.vx = dir * 130;
+    this.vx = dir * 130 * this.mods.knock;
     this.vy = -110;
     this.onGround = false;
     this.action = null; // 맞으면 공격이 끊겨요
     if (this.hp <= 0) this.dead = true;
     return true;
   }
-
   heal(n) {
     this.hp = Math.min(this.maxHp, this.hp + n);
   }
 
-  pose() {
-    const s = this.cls.stance;
-    if (this.dead) return { ...s, crouch: 9, lean: 9, fx: 14, fy: -8, bx: 6, by: -6, ffx: 8, fbx: -8 };
-    if (this.action) return this.action.act.pose ?? s;
-    if (this.hurtT > 0) return { ...s, lean: -6, crouch: 3, fx: 4, fy: -26 };
-    if (!this.onGround) return jumpPose(s, this.vy);
-    if (Math.abs(this.vx) > 12) return runPose(s, this.time);
-    return idlePose(s, this.time);
+  state() {
+    if (this.dead) return "down";
+    if (this.action) return "attack";
+    if (this.hurtT > 0) return "hurt";
+    if (!this.onGround) return "air";
+    if (Math.abs(this.vx) > 12) return "walk";
+    return "idle";
   }
 
   draw(frame) {
-    if (this.onGround) drawShadow(frame, this.x, this.y, 9);
+    if (this.onGround) drawShadow(frame, this.x, this.y, 8);
     const a = this.action, active = a && a.act.t >= 0;
     if (active) a.act.fx.draw(frame, "back");
-    drawBody(frame, this.pose(), this.x, this.y, {
+    const spr = heroFrame(this.profile.gender, this.state(), this.time, this.vy, a ? a.act.t : 0);
+    drawSprite(frame, spr, this.x, this.y, {
       flip: this.facing < 0,
-      tint: this.cls.tint,
       flash: this.flash,
       blink: this.invuln > 0 && !this.dead && Math.floor(this.time * 20) % 2 === 0,
     });

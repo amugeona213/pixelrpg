@@ -8,11 +8,13 @@ export const KEYS = {
   left: ["ArrowLeft", "KeyA"],
   right: ["ArrowRight", "KeyD"],
   up: ["ArrowUp", "KeyW"],
+  down: ["ArrowDown", "KeyS"],
   jump: ["ArrowUp", "KeyW", "Space"],
   attack: ["KeyJ", "KeyZ"],
   skill: ["KeyK", "KeyX"],
-  confirm: ["Enter", "Space"], // 직업 선택 화면에서 시작
-  menu: ["Enter"],             // 게임 중 직업 선택으로 (Space 는 점프라서 빼요)
+  interact: ["KeyE", "KeyF"],  // 조사·대화·문 열기
+  confirm: ["Enter", "Space"], // 메뉴에서 고르기, 대화 넘기기
+  menu: ["Enter"],
   pause: ["Escape", "KeyP"],
   restart: ["KeyR"],
   one: ["Digit1", "Numpad1"],
@@ -22,8 +24,8 @@ export const KEYS = {
 
 // 표준 게임패드 배치 (Xbox 기준: 0 A, 1 B, 2 X, 3 Y, 8 View/Select, 9 Menu/Start, 12~15 십자키)
 const PAD = {
-  jump: [0], confirm: [0, 9], attack: [2], skill: [3, 1], pause: [9], menu: [8], restart: [3],
-  up: [12], left: [14], right: [15],
+  jump: [0], confirm: [0], attack: [2], skill: [3], interact: [1], pause: [9], menu: [8], restart: [3],
+  up: [12], down: [13], left: [14], right: [15],
 };
 const STICK = 0.45;
 
@@ -39,7 +41,9 @@ function setMode(m) {
   for (const f of modeListeners) f(m);
 }
 
+const typingInField = (e) => e.target instanceof HTMLElement && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA");
 addEventListener("keydown", (e) => {
+  if (typingInField(e)) return; // 이름을 입력하는 중에는 게임 키로 쓰지 않아요
   if (GAME_CODES.has(e.code)) e.preventDefault();
   if (!keyDown.has(e.code)) keyHit.add(e.code);
   keyDown.add(e.code);
@@ -91,6 +95,7 @@ export const input = {
       if (ax < -STICK) now.add("left");
       if (ax > STICK) now.add("right");
       if (ay < -0.6) now.add("up");
+      if (ay > 0.6) now.add("down");
     }
     padHit = new Set([...now].filter((n) => !padHeld.has(n)));
     padHeld = now;

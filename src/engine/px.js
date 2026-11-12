@@ -18,3 +18,5 @@ export * as heartPickup from "../../vendor/pixelfx/src/fx/pickups/heart-pickup.j
 export * as collectBurst from "../../vendor/pixelfx/src/fx/pickups/collect-burst.js";
 export * as torch from "../../vendor/pixelfx/src/fx/fire/torch.js";
 export * as portal from "../../vendor/pixelfx/src/fx/arcane/portal.js";
+export * as slimeFx from "../../vendor/pixelfx/src/fx/critters/slime.js";
+export * as coinSpin from "../../vendor/pixelfx/src/fx/pickups/coin-spin.js";

@@ -138,7 +138,7 @@ body {
 /* 위쪽 버튼은 HUD(체력·점수) 사이 가운데에. 직업 선택 화면에서만 전체화면 버튼을 오른쪽 위 구석에 둬요 */
 .t-pause { left: calc(50% - var(--btn) * 0.8); }
 .t-fs { left: calc(50% + var(--btn) * 0.1); }
-#touch[data-scene="title"] .t-fs { left: auto; right: calc(var(--sr) + 2vmin); }
+#touch[data-scene="create"] .t-fs { left: auto; right: calc(var(--sr) + 2vmin); }
 #touch .t-fs[hidden] { display: none; }
 
 .t-menu {
@@ -163,8 +163,8 @@ body {
 .t-mbtn.primary { border-color: var(--gold); color: var(--gold); }
 .t-mbtn:active { transform: scale(0.95); }
 /* 직업 선택 화면은 설명 칸과 겹치지 않게 버튼을 위로 */
-#touch[data-scene="title"] .t-menu { bottom: auto; top: calc(var(--st) + 30vh); justify-content: space-between; padding: 0 calc(var(--sr) + 3vmin) 0 calc(var(--sl) + 3vmin); }
-#touch[data-scene="title"] .t-mbtn.primary { position: absolute; left: 50%; transform: translateX(-50%); top: 0; }
+#touch[data-scene="create"] .t-menu { bottom: auto; top: calc(var(--st) + 30vh); justify-content: space-between; padding: 0 calc(var(--sr) + 3vmin) 0 calc(var(--sl) + 3vmin); }
+#touch[data-scene="create"] .t-mbtn.primary { position: absolute; left: 50%; transform: translateX(-50%); top: 0; }
 
 /* ---- 세로 화면 안내 (휴대폰) ---- */
 #rotate {
@@ -194,3 +194,125 @@ body {
 @media (prefers-reduced-motion: reduce) {
   #rotate .phone { animation: none; transform: rotate(-90deg); }
 }
+
+/* ---- 대화창·메뉴·이름 입력 (src/game/ui.js). 게임 화면 위에 정확히 겹쳐요. --u = 게임 픽셀 1칸 크기 ---- */
+#ui {
+  position: fixed;
+  pointer-events: none;
+  z-index: 5;
+  --u: 4px;
+  font-size: calc(var(--u) * 4.6);
+}
+#ui > * { pointer-events: auto; }
+#ui [hidden] { display: none !important; }
+/* 대화창은 하늘 쪽(위)에: 아래의 캐릭터들이 가려지지 않게 */
+.ui-dialog {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 23%;
+  min-height: 19%;
+  box-sizing: border-box;
+  padding: calc(var(--u) * 4) calc(var(--u) * 5) calc(var(--u) * 4);
+  background: rgba(14, 11, 26, 0.94);
+  border: calc(var(--u) * 0.75) solid #e8dcc0;
+  border-radius: calc(var(--u) * 2.5);
+  box-shadow: 0 0 0 calc(var(--u) * 0.5) #1d1726, 0 calc(var(--u) * 1.5) 0 rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+.ui-dialog.has-face { padding-left: calc(var(--u) * 42); }
+.ui-face {
+  position: absolute;
+  left: calc(var(--u) * 3);
+  top: calc(var(--u) * 3);
+  width: calc(var(--u) * 36);
+  height: auto;
+  border-radius: calc(var(--u) * 2);
+  border: calc(var(--u) * 0.6) solid #e8dcc0;
+  image-rendering: pixelated;
+}
+.ui-who {
+  position: absolute;
+  top: calc(var(--u) * -5.5);
+  left: calc(var(--u) * 4);
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 4);
+  background: #ffd84a;
+  color: #1d1726;
+  font-weight: 800;
+  font-size: calc(var(--u) * 4.4);
+  border-radius: 999px;
+  border: calc(var(--u) * 0.6) solid #1d1726;
+}
+.ui-dialog.has-face .ui-who { left: calc(var(--u) * 42); }
+.ui-text { line-height: 1.55; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; color: #f4f1ea; }
+.ui-dialog.nar .ui-text { color: #cfc8e8; font-style: italic; }
+.ui-next { position: absolute; right: calc(var(--u) * 4); bottom: calc(var(--u) * 2); color: #ffd84a; font-size: 0.8em; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.ui-menu, .ui-name {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  min-width: calc(var(--u) * 110);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--u) * 2.5);
+  padding: calc(var(--u) * 5);
+  background: rgba(14, 11, 26, 0.9);
+  border: calc(var(--u) * 0.6) solid rgba(255, 255, 255, 0.2);
+  border-radius: calc(var(--u) * 3);
+  text-align: center;
+}
+/* 대화 중 선택지: 대화창 바로 위에 */
+.ui-menu.in-dialog { top: 47%; left: auto; right: 5%; transform: none; background: rgba(14, 11, 26, 0.82); padding: calc(var(--u) * 3); }
+.ui-name { top: 74%; left: 72%; min-width: calc(var(--u) * 90); }
+.ui-title { font-weight: 800; font-size: 1.15em; color: #ffd84a; }
+.ui-sub, .ui-hint { color: #cfc8e8; font-size: 0.8em; }
+.ui-opts { display: flex; flex-direction: column; gap: calc(var(--u) * 2); }
+.ui-name .ui-opts { flex-direction: row; justify-content: center; }
+.ui-opt {
+  min-height: max(40px, calc(var(--u) * 11));
+  padding: 0 calc(var(--u) * 6);
+  font: inherit;
+  font-weight: 700;
+  color: #f4f1ea;
+  background: rgba(40, 34, 64, 0.95);
+  border: calc(var(--u) * 0.6) solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ui-opt.on, .ui-opt:hover { border-color: #ffd84a; color: #ffd84a; }
+.ui-opt.on::before { content: "▶ "; }
+.ui-input {
+  font: inherit;
+  font-size: 1.2em;
+  text-align: center;
+  padding: calc(var(--u) * 2);
+  border-radius: calc(var(--u) * 2);
+  border: calc(var(--u) * 0.6) solid #ffd84a;
+  background: #120e22;
+  color: #fff;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ui-toast {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: calc(var(--u) * 2) calc(var(--u) * 5);
+  background: rgba(14, 11, 26, 0.9);
+  border: calc(var(--u) * 0.5) solid #8fdc6a;
+  border-radius: 999px;
+  font-size: 0.9em;
+  font-weight: 700;
+  color: #e8ffd8;
+  white-space: nowrap;
+  pointer-events: none !important;
+}
+/* 터치: 말 걸 수 있으면 조사 버튼이 반짝여요 */
+.t-talk.near { border-color: #ffd84a; box-shadow: 0 0 0 4px rgba(255, 216, 74, 0.35); }
+.t-talk:not(.near) { opacity: 0.55; }

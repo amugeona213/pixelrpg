@@ -27,6 +27,7 @@ export class Player {
       maxHp: Math.round(BASE.hp * m.hp), speed: BASE.speed * m.speed, jumpV: BASE.jump * m.jump,
       invuln: 0, hurtT: 0, flash: 0, time: 0, action: null, cd: { attack: 0 }, dead: false, deadT: 0,
       locked: false, // 대화 중에는 못 움직여요
+      landT: 0,      // 착지한 뒤 무릎 굽힌 모습을 보여 줄 시간
     });
     // 맵을 옮겨도 체력은 이어져요 (쓰러졌다 일어나면 가득)
     this.hp = Math.max(1, Math.min(this.maxHp, profile.hp ?? this.maxHp));
@@ -70,7 +71,10 @@ export class Player {
     // 점프 키를 일찍 떼면 낮게 뛰어요
     if (!this.onGround && this.vy < -60 && !input.held("jump")) this.vy += 900 * dt;
 
+    const wasAir = !this.onGround;
     moveBody(this, dt);
+    if (wasAir && this.onGround) this.landT = 0.1; // 착지: 잠깐 무릎을 굽혀요
+    this.landT = Math.max(0, this.landT - dt);
     if (this.action) this.updateAction(dt);
   }
 
@@ -116,6 +120,7 @@ export class Player {
     if (this.action) return "attack";
     if (this.hurtT > 0) return "hurt";
     if (!this.onGround) return "air";
+    if (this.landT > 0 && Math.abs(this.vx) < 30) return "land";
     if (Math.abs(this.vx) > 12) return "walk";
     return "idle";
   }

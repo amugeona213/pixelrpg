@@ -134,9 +134,10 @@ document.addEventListener("visibilitychange", () => {
 const portrait = matchMedia("(orientation: portrait) and (pointer: coarse) and (max-width: 700px)"); // style.css #rotate 와 같은 조건
 portrait.addEventListener?.("change", (e) => e.matches && pauseIfPlaying());
 
-function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
+/** 한 프레임: dt 초만큼 진행하고 그려요. 브라우저의 requestAnimationFrame 이나 점검 도구(window.game.step)가 불러요. */
+const uiRoot = document.getElementById("ui");
+function tick(dt) {
+  if (uiRoot.dataset.scene !== scene) uiRoot.dataset.scene = scene; // 장면마다 메뉴 위치가 달라요 (style.css)
   input.poll();
   ui.update(dt);
 
@@ -160,6 +161,13 @@ function frame(now) {
     if (world.talk && !ui.busy) {
       const id = world.talk;
       world.talk = null;
+      // 말 거는 상대가 주인공 뒤에 가려지지 않게 한 걸음 떨어져서 마주 봐요
+      const npc = world.npcs.find((n) => n.id === id), p = world.player;
+      if (npc && Math.abs(p.x - npc.x) < 34) p.x = npc.x + (Math.sign(p.x - npc.x) || -1) * 34; // 두 캐릭터 폭만큼
+      if (npc) {
+        p.facing = Math.sign(npc.x - p.x) || p.facing;
+        npc.face = -p.facing;
+      }
       runStory(id);
     }
     // 맵 끝에 닿음 → 다음 맵
@@ -187,16 +195,42 @@ function frame(now) {
   }
 
   input.endFrame();
+}
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  tick(dt);
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
-titleFlow();
+// 자동 플레이 점검(tools/playcheck)이 시계를 잡고 있으면 스스로 돌지 않고, 점검 도구가 한 칸씩 진행시켜요
+if (!window.GAME_CLOCK) requestAnimationFrame(frame);
+// 자동 점검에서만: ?start=road 처럼 주면 튜토리얼을 마친 시험용 캐릭터로 그 맵에서 바로 시작해요
+const startMap = window.GAME_CLOCK && new URLSearchParams(location.search).get("start");
+if (startMap && mapById(startMap)) {
+  profile = createProfile("f", "리아");
+  profile.tutorial = TUTORIAL_END;
+  profile.gold = 40;
+  enterMap(startMap, "left");
+} else titleFlow();
 
 // 개발용: 브라우저 콘솔에서 상태를 볼 수 있어요 (window.game.world, game.profile)
+// 자동 플레이 점검용: step(n) 으로 1/60초씩 진행, scene("play" = 맵에서 플레이 중), state(지금 상황 요약)
 window.game = {
   get world() { return world; },
   get profile() { return profile; },
-  get scene() { return scene; },
+  get scene() { return scene === "world" ? (ui.busy ? "talk" : "play") : scene; },
+  get state() {
+    const p = world?.player;
+    return {
+      map: world?.mapId ?? null, ui: ui.kind, x: p ? Math.round(p.x) : null, hp: p ? Math.ceil(p.hp) : null,
+      gold: profile?.gold ?? null, tutorial: profile?.tutorial ?? null, act: p?.state?.() ?? null,
+      margin: p ? p.hp / p.maxHp : null,
+    };
+  },
+  step(n = 1) {
+    if (n === 0) tick(0); // 진행 없이 지금 모습만 다시 그리기
+    for (let i = 0; i < n; i++) tick(1 / 60);
+  },
   ui,
   input,
   enterMap,

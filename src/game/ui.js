@@ -115,6 +115,13 @@ export function createUI(root, canvas) {
     finishName(v);
   });
   $("[data-v=back]", nameForm).addEventListener("click", () => finishName(null));
+  // 입력칸에서 Enter = 확인 (한글 조합 중인 Enter 는 글자 확정이라 넘어가요)
+  nameIn.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.code === "Enter") && !e.isComposing) {
+      e.preventDefault();
+      nameForm.requestSubmit();
+    }
+  });
   function finishName(v) {
     if (job?.kind !== "name") return;
     const j = job;
@@ -188,8 +195,8 @@ export function createUI(root, canvas) {
           j.done(j.cancel);
         }
       } else if (job.kind === "name") {
-        // 게임패드: A = 확인 (글자 입력은 화면 키보드나 키보드로)
-        if (input.mode === "gamepad" && input.hit("confirm")) nameForm.requestSubmit();
+        // 확인: 게임패드 A, 또는 입력칸 밖에서 누른 Enter (입력칸 안의 Enter 는 브라우저가 바로 제출해요)
+        if (input.hit("confirm")) nameForm.requestSubmit();
       }
     },
   };

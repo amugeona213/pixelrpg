@@ -39,7 +39,7 @@ export class World {
     this.props = this.map.props.map((d) => new Prop(d, GROUND_Y));
     this.coins = [];
     this.fx = new FxPool();
-    this.torches = (this.map.torches ?? []).map((x, i) => createFx(torch, { x, y: GROUND_Y - 6, seed: i + 3 }));
+    this.torches = (this.map.torches ?? []).map((x, i) => createFx(torch, { x, y: GROUND_Y - 15, seed: i + 3 }) /* 기둥 밑이 땅선에 닿게 */);
     this.camX = clamp(startX - VIEW_W / 2, 0, this.width - VIEW_W);
     this.hitstop = 0;
     this.shakeT = 0;
@@ -180,7 +180,7 @@ export class World {
   damagePlayer(dmg, dir) {
     const p = this.player;
     if (!p.hurt(dmg, dir)) return;
-    this.fx.spawn(damageNumber, { x: Math.round(p.x), y: Math.round(p.y - 44), text: `-${dmg}`, palette: PAL.ice, seed: rnd() });
+    this.fx.spawn(damageNumber, { x: Math.round(p.x), y: Math.round(p.y - 44), text: `-${dmg}`, palette: PAL.blood, seed: rnd() }); // 주인공이 맞으면 빨강 (파랑은 칼 색)
     this.addShake(0.22, 2);
     if (p.dead) this.fx.spawn(poof, { x: Math.round(p.x), y: Math.round(p.y), seed: rnd() });
   }

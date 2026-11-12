@@ -50,6 +50,7 @@ const THEMES = {
     moon: true,
     far: [C(30, 28, 52), C(42, 40, 68)], farH: towerH,
     near: [C(46, 44, 64), C(70, 68, 92)], nearH: () => 104, wall: true,
+    moonAt: [170, 16], // 성탑(가장 높은 곳 y 30)보다 위, 오른쪽 위 HUD 와 겹치지 않게
     windows: castleWindows,
     ground: "stone",
   },
@@ -90,7 +91,7 @@ function castleWindows(put, camX) {
 
 const EDGE = C(88, 120, 70), EDGE_D = C(58, 86, 52), DIRT = C(52, 40, 46), DIRT_D = C(38, 30, 36), MORTAR = C(28, 22, 28);
 const STONE = C(84, 80, 102), STONE_D = C(62, 58, 80), STONE_E = C(120, 116, 140);
-const LEDGE = C(120, 104, 128), LEDGE_D = C(74, 62, 86), LEDGE_DD = C(46, 38, 58);
+const LEDGE = C(138, 130, 160), LEDGE_D = C(84, 80, 106), LEDGE_DD = C(26, 18, 30), LEDGE_SPOT = C(62, 58, 80); // 발판: 성 돌 색 + 진한 외곽선
 const WOOD = C(150, 100, 58), WOOD_D = C(110, 70, 40), WOOD_DD = C(70, 44, 28);
 const MOON = C(236, 226, 206), MOON_D = C(196, 182, 168), STAR = C(200, 190, 255);
 
@@ -125,7 +126,8 @@ export function drawBackground(bg, camX, { theme = level.theme, platforms = true
     }
   if (T.windows) T.windows(put, camX);
   if (T.moon) {
-    const mx = 250 - Math.round(camX * 0.03), my = 30;
+    const [m0, my] = T.moonAt ?? [250, 30];
+    const mx = m0 - Math.round(camX * 0.03);
     for (let y = -10; y <= 10; y++)
       for (let x = -10; x <= 10; x++) {
         const px = mx + x, py = my + y;
@@ -163,7 +165,7 @@ function drawPlatform(put, p, camX) {
   for (let dy = 0; dy < 7; dy++)
     for (let dx = 0; dx < p.w; dx++) {
       const edge = dx === 0 || dx === p.w - 1;
-      put(x0 + dx, p.y + dy, dy === 0 ? LEDGE : dy === 6 || edge ? LEDGE_DD : (dx + dy * 3) % 11 === 0 ? LEDGE_DD : LEDGE_D);
+      put(x0 + dx, p.y + dy, dy === 0 ? LEDGE : dy === 6 || edge ? LEDGE_DD : (dx + dy * 3) % 11 === 0 ? LEDGE_SPOT : LEDGE_D);
     }
 }
 

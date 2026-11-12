@@ -84,8 +84,8 @@ export function drawHud(ctx, world, mode = "keyboard", banner = null) {
   }
 
   // 말 걸기 표시: NPC·표지판 머리 위에 말풍선
-  if (world.near && p.alive) {
-    const o = world.near, sx = (o.x - world.camX) * SCALE, sy = (GROUND_Y - (o.kind === "sign" ? 20 : 44)) * SCALE;
+  if (world.near && p.alive && !p.locked) { // 대화 중에는 숨겨요
+    const o = world.near, sx = (o.x - world.camX) * SCALE, sy = (GROUND_Y - (o.kind === "sign" ? 20 : o.kind === "guard" ? 54 : 44)) * SCALE;
     const label = `${keyName(mode, "interact")}  ${o.kind === "sign" ? "읽기" : "대화"}`;
     ctx.font = `700 20px ${FONT}`;
     const w = ctx.measureText(label).width + 36;

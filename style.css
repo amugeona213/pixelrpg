@@ -267,7 +267,7 @@ body {
 }
 /* 대화 중 선택지: 대화창 바로 위에 */
 .ui-menu.in-dialog { top: 47%; left: auto; right: 5%; transform: none; background: rgba(14, 11, 26, 0.82); padding: calc(var(--u) * 3); }
-.ui-name { top: 74%; left: 72%; min-width: calc(var(--u) * 90); }
+.ui-name { top: 77%; left: 72%; min-width: calc(var(--u) * 90); }
 .ui-title { font-weight: 800; font-size: 1.15em; color: #ffd84a; }
 .ui-sub, .ui-hint { color: #cfc8e8; font-size: 0.8em; }
 .ui-opts { display: flex; flex-direction: column; gap: calc(var(--u) * 2); }
@@ -316,3 +316,5 @@ body {
 /* 터치: 말 걸 수 있으면 조사 버튼이 반짝여요 */
 .t-talk.near { border-color: #ffd84a; box-shadow: 0 0 0 4px rgba(255, 216, 74, 0.35); }
 .t-talk:not(.near) { opacity: 0.55; }
+/* 타이틀: 메뉴를 부제와 주인공 머리 사이에 (주인공을 가리지 않게) */
+#ui[data-scene="title"] .ui-menu:not(.in-dialog) { top: 46%; }

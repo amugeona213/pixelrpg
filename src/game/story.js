@@ -105,7 +105,7 @@ export function makeStory(ctx) {
       }
       await say("오오, 그대가 도토리 마을의 견습 원정대원인가.");
       await say("먼 길 오느라 수고했네. 그대의 이름은 무엇인가?");
-      await me("{name}입니다, 폐하.", "determined");
+      await me("{name}입니다, 폐하.", "neutral");
       p.knows.king = true;
       await say("{name}. 좋은 이름이로군.");
       await say("듣게. 왕국 동쪽 끝, 고대 유적 깊은 곳에 유물 'PIXEL'이 잠들어 있네.");

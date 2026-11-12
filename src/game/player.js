@@ -28,6 +28,8 @@ export class Player {
       invuln: 0, hurtT: 0, flash: 0, time: 0, action: null, cd: { attack: 0 }, dead: false, deadT: 0,
       locked: false, // 대화 중에는 못 움직여요
       landT: 0,      // 착지한 뒤 무릎 굽힌 모습을 보여 줄 시간
+      coyote: 0,     // 발판 끝에서 떨어진 직후에도 점프할 수 있는 시간 (Celeste 처럼 0.1초)
+      walkDist: 0,   // 걸은 거리 (걷기 그림을 거리로 넘겨서 발이 미끄러지지 않게)
     });
     // 맵을 옮겨도 체력은 이어져요 (쓰러졌다 일어나면 가득)
     this.hp = Math.max(1, Math.min(this.maxHp, profile.hp ?? this.maxHp));
@@ -61,9 +63,10 @@ export class Player {
     }
 
     if (ctl && !this.action) {
-      if (input.hit("jump") && this.onGround) {
+      if (input.hit("jump") && (this.onGround || this.coyote > 0)) {
         this.vy = -this.jumpV;
         this.onGround = false;
+        this.coyote = 0;
         world.count("jumps");
       }
       if (input.hit("attack") && this.cd.attack <= 0) this.attack(world);
@@ -74,6 +77,10 @@ export class Player {
     const wasAir = !this.onGround;
     moveBody(this, dt);
     if (wasAir && this.onGround) this.landT = 0.1; // 착지: 잠깐 무릎을 굽혀요
+    if (this.onGround) {
+      this.coyote = 0.1;
+      this.walkDist += Math.abs(this.vx) * dt;
+    } else this.coyote = Math.max(0, this.coyote - dt);
     this.landT = Math.max(0, this.landT - dt);
     if (this.action) this.updateAction(dt);
   }
@@ -129,7 +136,7 @@ export class Player {
     if (this.onGround) drawShadow(frame, this.x, this.y, 8);
     const a = this.action, active = a && a.act.t >= 0;
     if (active) a.act.fx.draw(frame, "back");
-    const spr = heroFrame(this.profile.gender, this.state(), this.time, this.vy, a ? a.act.t : 0);
+    const spr = heroFrame(this.profile.gender, this.state(), this.time, this.vy, a ? a.act.t : 0, this.walkDist);
     drawSprite(frame, spr, this.x, this.y, {
       flip: this.facing < 0,
       flash: this.flash,

@@ -27,6 +27,14 @@ const EYES = {
     "rssssssssr",
     ".sssTTsss.",
   ],
+  // 눈 감은 모습 (깜빡임): 속눈썹 선이 아래로
+  fBlink: [
+    "ssssssssss",
+    "ssssssssss",
+    "skksssskks",
+    "rssssssssr",
+    ".sssTTsss.",
+  ],
   m: [
     "kkssskks",
     "EEsssEEs",
@@ -55,12 +63,14 @@ const SWORD = [
 const ATTACK = { erase: [25, 21, 99, 31], shoulder: [23, 24] };
 // 베기 단계: 손 위치, 칼 각도(라디안, 0 = 앞, - = 위), behind = 머리 뒤로 들어서 머리보다 먼저 그림
 const SWING = [
-  { hand: [18, 19], ang: -2.2, behind: true },  // 어깨 뒤로 들기 (칼은 머리 뒤로: 눈을 가리지 않게)
-  { hand: [19, 12], ang: -1.7, behind: true },  // 머리 위로 높이 들기 (칼끝이 머리 위로 보여요)
-  { hand: [30, 18], ang: -0.75 },              // 휘두르기
-  { hand: [33, 25], ang: 0 },                  // 베기 (맞는 순간)
-  { hand: [32, 28], ang: 0.55 },               // 내리기
-  { hand: [29, 29], ang: 1.05 },               // 거두기
+  // 도트 게임 자료(보고서 "도트 게임 주인공 모션 원칙"): 작은 그림에서 칼을 아무 각도로 돌리면 선이 깨져요.
+  // 깨끗한 각도(45도 단위)만 쓰고, 휘두르는 순간(smear)에는 칼을 숨기고 pixelfx 베기 궤적이 대신 보여요.
+  { hand: [18, 19], ang: -Math.PI * 0.75, behind: true }, // 들기: 칼을 등 뒤 위로 (45도)
+  { hand: [19, 12], ang: -Math.PI / 2, behind: true },    // 머리 위로 (수직)
+  { hand: [30, 18], smear: true },                        // 휘두르기: 칼은 궤적 속에 (숨김)
+  { hand: [33, 24], smear: true },                        // 베기: 궤적 (맞는 순간)
+  { hand: [33, 25], ang: 0 },                             // 앞으로 쭉 뻗은 마무리 (가장 오래 보여요)
+  { hand: [30, 28], ang: Math.PI / 4 },                   // 거두기 (45도 아래)
 ];
 const LEG_ROWS = 12; // 그림 아래쪽 이 줄 수만큼이 다리
 const SLEEVE = color("#e6dfe8"); // 흰 소매
@@ -144,6 +154,11 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
   eyes.forEach((row, j) => [...row].forEach((ch, i) => {
     if (ch !== ".") head.push([eyeX + i, eyeY + j, HAND[ch]]);
   }));
+  // 눈 감은 머리 (깜빡임용): 눈 자리만 바꿔요
+  const headBlink = head.slice(0, head.length - eyes.flat().join("").replace(/\./g, "").length);
+  if (EYES[g + "Blink"]) EYES[g + "Blink"].forEach((row, j) => [...row].forEach((ch, i) => {
+    if (ch !== ".") headBlink.push([eyeX + i, eyeY + j, HAND[ch]]);
+  }));
   const headMinX = Math.min(...head.map((p) => p[0]));
   const hairPivot = Math.min(fb.x0, eyeX) - 2; // 이보다 왼쪽(뒤쪽) 머리카락이 날려요
   const headCx = Math.round((Math.min(...head.map((p) => p[0])) + Math.max(...head.map((p) => p[0]))) / 2);
@@ -155,7 +170,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     return [x - Math.round(sway * t), y - Math.round(lift * t * t)];
   };
   /**
-   * 한 프레임. o: { legsFrom: 다리를 가져올 다른 프레임 이름, upperDy: 윗몸을 아래로 누르는 픽셀, swing: SWING 단계 }
+   * 한 프레임. o: { legsFrom: 다리를 가져올 다른 프레임 이름, upperDy: 윗몸을 아래로 누르는 픽셀, swing: SWING 단계, blink: 눈 감음 }
    */
   const one = (name, windKey = name, o = {}) => {
     const gr = grid(F[name], pal), w = gr[0].length, h = gr.length;
@@ -186,11 +201,11 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     }
     const armAndSword = () => {
       const [sx, sy] = ATTACK.shoulder, [hx, hy] = sw.hand;
-      drawSword(s, hx + M, hy + M, sw.ang);
+      if (!sw.smear) drawSword(s, hx + M, hy + M, sw.ang);
       drawArm(s, sx + M, sy + M, hx + M, hy + M);
     };
     if (sw?.behind) armAndSword();
-    for (const [x, y, c] of head) {
+    for (const [x, y, c] of o.blink ? headBlink : head) {
       const [nx, ny] = blow(x, y, hairPivot, headMinX, sway, lift);
       s.set(nx + dx + M, ny + dy + M, c);
     }
@@ -209,13 +224,10 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
   lying.ay = y1 + 1;
   FRAMES[g] = {
     idle: [one("idle0"), one("idle1")],
-    // 걷기 8장: 시트 4장 사이에 "다음 걸음 다리 + 1픽셀 내려앉은 몸" 중간 그림
-    walk: [
-      one("walk0"), one("walk0", "walk1", { legsFrom: "walk1", upperDy: 1 }),
-      one("walk1"), one("walk1", "walk2", { legsFrom: "walk2", upperDy: 1 }),
-      one("walk2"), one("walk2", "walk3", { legsFrom: "walk3", upperDy: 1 }),
-      one("walk3"), one("walk3", "walk0", { legsFrom: "walk0", upperDy: 1 }),
-    ],
+    blink: [one("idle0", "idle0", { blink: true })], // 눈 깜빡임
+    // 걷기: 시트 4장 그대로 (다리를 합성한 중간 그림은 허리 선이 깨지고 픽셀이 떨려서 뺐어요).
+    // 발이 땅에 닿는 장면(0, 2)은 몸이 1픽셀 내려앉고 조금 더 오래, 다리가 엇갈리는 장면(1, 3)은 짧게
+    walk: [one("walk0", "walk0", { upperDy: 1 }), one("walk1"), one("walk2", "walk2", { upperDy: 1 }), one("walk3")],
     land: [one("idle0", "idle1", { upperDy: 2 })], // 착지: 무릎 굽힘
     jump: [one("jump", "jumpUp"), one("jump", "jumpDown")], // 올라갈 때, 떨어질 때 (머리카락·망토가 반대로 날려요)
     attack: SWING.map((sw, i) => one("attack", i < 2 ? "idle1" : "attack", { swing: sw })),
@@ -230,19 +242,37 @@ FRAMES.m = FRAMES.f;
  *   state: idle | walk | air | land | attack | hurt | down
  *   actT: 칼 공격 동작 시간 (pixelfx sword-slash: -0.55 시작, 0.06 에 맞음) → 베기 6단계 중 하나
  */
-export function heroFrame(gender, state, t, vy = 0, actT = 0) {
+// 걷기: 시간 대신 "걸은 거리"로 그림을 넘겨요 → 발이 미끄러지지 않아요.
+// 한 걸음 사이클 36px: 닿기 10px, 엇갈림 8px, 닿기 10px, 엇갈림 8px (78px/s 로 걸으면 약 133ms / 100ms)
+const WALK_STEP = [10, 8, 10, 8], WALK_CYCLE = 36;
+// 서기(숨쉬기): 400ms 들이쉬고 250ms 내쉬기. 약 3.2초마다 0.12초 눈 깜빡임
+const IDLE_MS = [0.4, 0.25], BLINK_EVERY = 3.2, BLINK_LEN = 0.12;
+function stepIndex(steps, total, v) {
+  let r = ((v % total) + total) % total;
+  for (let i = 0; i < steps.length; i++) {
+    if (r < steps[i]) return i;
+    r -= steps[i];
+  }
+  return 0;
+}
+
+export function heroFrame(gender, state, t, vy = 0, actT = 0, dist = 0) {
   const F = FRAMES[gender === "f" ? "f" : "m"];
   switch (state) {
-    case "walk": return F.walk[Math.floor(t * 14) % 8];
+    case "walk": return F.walk[stepIndex(WALK_STEP, WALK_CYCLE, dist)];
     case "land": return F.land[0];
     case "air": return vy < 40 ? F.jump[0] : F.jump[1];
     case "attack": {
-      const i = actT < -0.38 ? 0 : actT < -0.12 ? 1 : actT < 0 ? 2 : actT < 0.18 ? 3 : actT < 0.3 ? 4 : 5;
+      // 단계: 들기 → 머리 위 → 휘두르기(궤적) → 베기(궤적, 0.06 에 맞음) → 마무리(가장 길게) → 거두기
+      const i = actT < -0.3 ? 0 : actT < -0.06 ? 1 : actT < 0.03 ? 2 : actT < 0.12 ? 3 : actT < 0.32 ? 4 : 5;
       return F.attack[i];
     }
     case "hurt": return F.hurt[0];
     case "down": return F.down[0];
-    default: return F.idle[Math.floor(t * 2.2) % 2];
+    default: {
+      if (t % BLINK_EVERY > BLINK_EVERY - BLINK_LEN) return F.blink[0];
+      return F.idle[stepIndex(IDLE_MS, IDLE_MS[0] + IDLE_MS[1], t)];
+    }
   }
 }
 

@@ -111,22 +111,12 @@ const STAND_LEGS = [ // 서기: 두 발을 어깨너비로 모아 딛기
   "........aaa...bbb.......",
   "........aaa...bbbb......",
 ];
-// 베기 때 크게 벌린 걸음 (기준 다리와 같은 그림체, 왼쪽 보는 방향으로 적고 그릴 때 뒤집어요)
-const WIDE_LEGS = [
-  "......llll....jjjj......",
-  ".....lll.......jkkk.....",
-  "....ljjj........kkkj....",
-  "...ljjj..........kkkj...",
-  "..aaaa............bbbb..",
-  "..aaa.............bbbbb.",
-];
 const POSE_LEGS = {
   stand: STAND_LEGS,
   lunge: REF_LEGS[0],   // 베기: 크게 벌린 걸음 자세 (몸이 앞으로 실려요)
   rise: REF_LEGS[3],    // 점프 올라갈 때: 한쪽 무릎을 들어 올림
   fall: REF_LEGS[7],    // 떨어질 때: 다리를 내리며 착지 준비
   hurt: REF_LEGS[1],    // 맞음: 뒤로 밀리며 다리가 모임
-  wide: WIDE_LEGS,      // 베기: 깊게 내딛은 걸음
 };
 /**
  * 낡은 철검 (무기를 고르기 전까지 쓰는 칼). 손(hx, hy)에서 각도 ang 으로, 45도 단위로만 그려요 (도트가 깨지지 않게).
@@ -253,42 +243,14 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
   const one = (name, windKey = name, o = {}) => {
     // o.src: 다른 시트에서 뽑은 그림 (f2 = 추가 동작 시트의 점프·착지·맞음·쓰러짐)
     const SRC = o.src ? HERO_ART[o.src] : art;
-    let gr = grid(SRC.frames[name], SRC.pal), h = gr.length;
-    const w = gr[0].length;
-    // o.legCut: 원본 그림의 다리(아래 legCut 줄)를 잘라내고 서기·걷기와 같은 기준 다리(6줄)를 붙여요.
-    //   잘린 줄의 칼(회색 쇠)은 그대로 남겨요. footH = 발바닥 아래 줄, 그보다 아래로 내려간 칼끝은 발 위치를 맞춰요
-    let footH = h, legCx = null;
-    if (o.legCut) {
-      const hem = h - (SRC.sink?.[name] ?? 0) - o.legCut, xs = []; // 발바닥(칼끝 아래 줄 빼고)에서 위로 legCut 줄
-      for (let y = hem; y < h; y++) for (let x = 0; x < w; x++) if (gr[y][x] && !isSteel(gr[y][x])) xs.push(x);
-      legCx = Math.round((Math.min(...xs) + Math.max(...xs)) / 2) + (o.legDx ?? 0);
-      footH = hem + LEG_ROWS_REF - 1; // 기준 다리 맨 윗줄이 치마 끝줄과 겹치게 (틈이 안 생겨요)
-      const nh = Math.max(h, footH);
-      // 잘린 줄에서는 칼만 남겨요: 회색 픽셀이 10개 넘게 이어진 덩어리만 (다리의 흰 줄무늬 조각은 버려요)
-      const keep = new Set();
-      for (let y = hem; y < h; y++) for (let x = 0; x < w; x++) {
-        if (keep.has(y * w + x) || !gr[y][x] || !isSteel(gr[y][x])) continue;
-        const st = [[x, y]], seen = [[x, y]], vis = new Set([y * w + x]);
-        while (st.length) {
-          const [cx, cy] = st.pop();
-          for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
-            const nx = cx + ox, ny = cy + oy;
-            if (ny >= 0 && ny < h && nx >= 0 && nx < w && !vis.has(ny * w + nx) && gr[ny][nx] && isSteel(gr[ny][nx])) { vis.add(ny * w + nx); st.push([nx, ny]); seen.push([nx, ny]); }
-          }
-        }
-        if (seen.length > 10) for (const [sx, sy] of seen) keep.add(sy * w + sx);
-      }
-      gr = Array.from({ length: nh }, (_, y) => y < hem ? gr[y] : Array.from({ length: w }, (_, x) => (keep.has(y * w + x) ? gr[y][x] : null)));
-      h = nh;
-    }
+    const gr = grid(SRC.frames[name], SRC.pal), w = gr[0].length, h = gr.length;
     // o.erase: [x0, y0, x1, y1, 색] 범위의 픽셀을 그 색으로 바꿔요 (뽑은 그림에서 잘못된 부분 지우기)
     for (const [ex0, ey0, ex1, ey1, col] of o.erase ?? [])
       for (let y = ey0; y <= ey1; y++) for (let x = ex0; x <= ex1; x++) if (gr[y]?.[x]) gr[y][x] = col;
     const sw = o.swing ?? null;
     const [sway, lift] = WIND[windKey] ?? [0, 0];
     const s = new Sheet(w + M * 2 + (sw || o.blade ? 14 : 0), h + M, 0, h + M);
-    // o.face: [x1, y1] 얼굴 오른쪽 아래(턱) 자리를 직접 정해요 (팔이 얼굴을 가려서 자동으로 못 찾는 그림)
-    const box = o.face ? { x0: o.face[0] - 7, y0: o.face[1] - 6, x1: o.face[0], y1: o.face[1] } : faceBox(gr) ?? fb;
+    const box = faceBox(gr) ?? fb;
     const dx = box.x1 - fb.x1, up = o.upperDy ?? 0, dy = box.y1 - fb.y1 + up;
     const legTop = h - LEG_ROWS;
     // 다리: 다른 프레임에서 가져오면 얼굴 위치로 맞춰 붙여요 (걷기 중간 그림)
@@ -318,7 +280,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     for (let y = o.keepHead ? 0 : box.y1 + 1; y < h; y++) {
       const isLeg = y >= legTop;
       if (isLeg && o.legsFrom) continue;
-      if (o.legs != null && !o.legCut && y >= footH - LEG_ROWS_REF && y < footH) continue; // 참고 GIF 에서 따온 다리로 바꿔요
+      if (o.legs != null && y >= h - LEG_ROWS_REF) continue; // 참고 GIF 에서 따온 다리로 바꿔요
       for (let x = 0; x < w; x++) {
         if (!gr[y][x]) continue;
         if (sw && x >= E[0] && y >= E[1] && x <= E[2] && y <= E[3]) continue;
@@ -344,53 +306,29 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     if (o.legs != null) {
       // 다리 가운데: 원본 다리 줄의 픽셀 가운데에 따온 다리의 가운데를 맞춰요
       const xs = [];
-      for (let y = footH - LEG_ROWS_REF; y < footH; y++) for (let x = 0; x < w; x++) if (gr[y][x]) xs.push(x);
-      const c = legCx ?? Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+      for (let y = h - LEG_ROWS_REF; y < h; y++) for (let x = 0; x < w; x++) if (gr[y][x]) xs.push(x);
+      const c = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
       // 참고 GIF 캐릭터는 왼쪽을 보고 있어서, 오른쪽을 보는 주인공에 맞게 좌우를 뒤집어요
       const src = typeof o.legs === "number" ? REF_LEGS[o.legs] : POSE_LEGS[o.legs];
-      const ly0 = footH - LEG_ROWS_REF + M;
       const rows = src.map((r) => [...r.replace(/[hi]/g, ".")].reverse().join(""));
-      const lx = c - (REF_LEGS[0][0].length - 1 - LEG_CX_REF) + M, ly = ly0;
+      const lx = c - (REF_LEGS[0][0].length - 1 - LEG_CX_REF) + M, ly = h - LEG_ROWS_REF + M;
       // 외곽선 먼저 (다리 바깥 한 칸, 비어 있는 곳만)
       rows.forEach((r, yy) => [...r].forEach((ch, xx) => {
         if (ch === ".") return;
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1]]) {
           const nx = lx + xx + dx, ny = ly + yy + dy, nr = rows[yy + dy];
           const inside = nr && nr[xx + dx] && nr[xx + dx] !== ".";
-          if (!inside && !s.get(nx, ny) && ny < footH + M) s.set(nx, ny, LEG_PAL.A); // 발바닥 아래로는 안 그려요
+          if (!inside && !s.get(nx, ny)) s.set(nx, ny, LEG_PAL.A);
         }
       }));
       s.art(rows, LEG_PAL, lx, ly);
-      // 다리 앞을 지나는 칼은 다리 위에 다시 그려요
-      if (o.legCut) for (let y = footH - LEG_ROWS_REF; y < h; y++) for (let x = 0; x < w; x++) if (gr[y][x]) s.set(x + M, y + M, color(gr[y][x]));
     }
     if (sw?.behind) armAndSword();
-    // o.torso: 턱 아래 가슴(옷깃·블라우스)을 서기 그림에서 가져와 붙여요 (원래 그림의 팔을 지운 자리)
-    if (o.torso) for (let y = fb.y1 + 1; y <= fb.y1 + o.torso; y++)
-      for (let x = fb.x0 - 4; x <= fb.x1 + 3; x++) if (base[y]?.[x]) s.set(x + dx + M, y + dy + M, color(base[y][x]));
-    // o.raise: { hand: [x, y] 머리 꼭대기 가운데 기준 손 자리, ang: 칼 각도 }. 칼과 팔은 머리 뒤(먼저), 두 손은 머리 위(나중)
-    const R = o.raise && (() => {
-      const top = Math.min(...head.map((p) => p[1])) + dy;
-      const hx = headCx + dx + o.raise.hand[0], hy = top + o.raise.hand[1];
-      const c = Math.round(Math.cos(o.raise.ang)), n = Math.round(Math.sin(o.raise.ang));
-      return { hx, hy, top, h2: [hx - c, hy - n] }; // 둘째 손: 손잡이를 따라 칼 반대쪽
-    })();
-    if (R) {
-      drawSword(s, R.hx + M, R.hy + M, o.raise.ang);
-      // 팔뚝: 머리카락 속(머리 꼭대기 아래)에서 손까지만. 어깨~턱 사이는 머리에 가려 보이지 않는 자리예요
-      drawArm(s, R.h2[0] - 1 + M, R.top + 5 + M, R.h2[0] + M, R.h2[1] + M);
-      drawArm(s, R.hx + 1 + M, R.top + 5 + M, R.hx + M, R.hy + M);
-    }
     for (const [x, y, c] of o.keepHead ? [] : o.blink ? headBlink : head) {
       const [nx, ny] = blow(x, y, hairPivot, headMinX, sway, lift);
       s.set(nx + dx + M, ny + dy + M, c);
     }
     if (sw && !sw.behind) armAndSword();
-    if (R) for (const [x, y] of [R.h2, [R.hx, R.hy]]) {
-      // 장갑 (손잡이를 감싼 두 손)
-      for (const [ox, oy] of [[-1, 0], [2, 0], [0, -1], [1, -1], [0, 2], [1, 2], [-1, 1], [2, 1]]) if (!s.get(x + ox + M, y + oy + M) || true) s.set(x + ox + M, y + oy + M, HAND.k);
-      s.set(x + M, y + M, HAND.l); s.set(x + 1 + M, y + M, HAND.l); s.set(x + M, y + 1 + M, HAND.N); s.set(x + 1 + M, y + 1 + M, HAND.l);
-    }
     if (o.blade && !o.blade.behind) blade();
     // o.eyes: 머리를 바꾸지 않은 그림에도 같은 눈을 찍어요 (줄인 그림은 눈이 뭉개져서)
     if (o.eyes && box !== fb) {
@@ -406,8 +344,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
         if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y)) s.set(x, y, s.get(x - 1, y)); // 세로로 한 줄 전체가 빈 틈도 메워요
     s.ax = headCx + dx + M - (o.step ?? 0); // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요. step: 앞으로 내딛기
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
-    if (o.legCut) s.ay = footH + M; // 잘라 붙인 다리의 발바닥
-    else s.ay -= SRC.sink?.[name] ?? 0; // 발바닥보다 아래로 내려간 칼끝만큼 발 위치를 올려요
+    s.ay -= SRC.sink?.[name] ?? 0; // 발바닥보다 아래로 내려간 칼끝만큼 발 위치를 올려요
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
   // 쓰러짐: 추가 동작 시트의 누운 그림을 그대로 (머리 방향이 달라 머리는 바꾸지 않아요)
@@ -427,21 +364,22 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       one(["walk0", "walk0", "walk0", "walk1", "walk1", "walk2", "walk2", "walk2", "walk3", "walk3"][i], "wk" + "ABCDEFGHAB"[i], { legs: i, upperDy: WALK_DOWN[i] }),
     ),
     // 점프·착지·맞음: 사용자가 준 추가 동작 시트(assets/ref/hero-motions2.png) 맨 아래 줄을 참고로 뽑은 그림
-    land: [one("crouch", "idle1", { src: "f2", legCut: 7, legs: "stand" })], // 착지: 무릎을 굽혀 웅크림
-    jump: [one("air", "jumpUp", { src: "f2", legCut: 8, legs: "rise" }), one("jumpPrep", "jumpDown", { src: "f2", legCut: 8, legs: "fall" })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
+    land: [one("crouch", "idle1", { src: "f2" })], // 착지: 무릎을 굽혀 웅크림
+    jump: [one("air", "jumpUp", { src: "f2" }), one("jumpPrep", "jumpDown", { src: "f2" })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
     // 베기 6단계: OpenArt 로 만든 베기 시트(assets/ref/hero-slash-ai.png)를 줄인 그림 (tools/hero-slash.py → f4)
     //   사용자 동작 시트를 기준 그림으로 넣어 같은 얼굴·옷·낡은 철검으로 그렸어요. 팔·칼이 머리 위로 올라가서 머리는 바꾸지 않아요
     //   1 젖히기(칼을 몸 뒤로 낮게) → 2 치켜들기(머리 위) → 3 내려치기 → 4 베기(앞으로 깊게 내딛음, 맞는 순간) → 5 마무리(칼끝을 낮게) → 6 거두기
     //   머리가 가려지지 않는 장(1·4·5·6)은 서기·걷기와 같은 머리로 바꾸고, 칼을 머리 위로 든 장(2·3)은 그림 머리에 같은 눈만 찍어요
     attack: [
-      one("s0", "attack", { src: "f4", keepSword: true, legCut: 8, legs: "lunge" }),                                   // 1 젖히기
-      one("s1", "attack", { src: "f4", face: [29, 37], legCut: 9, legs: "lunge", erase: [[19, 36, 27, 46, "#1b1c36"]], torso: 8, raise: { hand: [-1, -5], ang: -Math.PI * 0.75 } }), // 2 치켜들기: 두 손으로 칼을 머리 위로, 칼끝은 뒤로
-      one("s2", "attack", { src: "f4", face: [30, 35], legCut: 9, legs: "lunge", erase: [[20, 36, 28, 46, "#1b1c36"]], torso: 8, raise: { hand: [6, -4], ang: -Math.PI / 4 } }),     // 3 내려치기 시작: 두 손이 머리 앞쪽 위로, 칼끝이 앞으로 넘어옴
-      one("s3", "attack", { src: "f4", keepSword: true, legCut: 8, legs: "lunge" }),                                   // 4 베기
-      one("s4", "attack", { src: "f4", keepSword: true, legCut: 8, legs: "lunge" }),                                   // 5 마무리
-      one("s5", "attack", { src: "f4", keepSword: true, legCut: 8, legs: "stand" }),                                  // 6 거두기
+      one("s0", "attack", { src: "f4", keepSword: true }),
+      one("s1", "attack", { src: "f4", keepHead: true, eyes: true }),
+      // 3: 가슴 앞의 빈 주먹을 지우고, 칼 손잡이에 손을 하나 더 쥐여 두 손으로 잡아요
+      one("s2", "attack", { src: "f4", keepHead: true, eyes: true, erase: [[22, 37, 26, 41, "#1b1c36"]], hand: [18, 19] }),
+      one("s3", "attack", { src: "f4", keepSword: true }),
+      one("s4", "attack", { src: "f4", keepSword: true }),
+      one("s5", "attack", { src: "f4", keepSword: true }),
     ],
-    hurt: [one("hurt", "hurt", { src: "f2", legCut: 7, legs: "hurt" })],
+    hurt: [one("hurt", "hurt", { src: "f2" })],
     down: [lying],
   };
 }

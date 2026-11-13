@@ -222,6 +222,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
   if (EYES[g + "Blink"]) EYES[g + "Blink"].forEach((row, j) => [...row].forEach((ch, i) => {
     if (ch !== ".") headBlink.push([eyeX + i, eyeY + j, HAND[ch]]);
   }));
+  const eyesArt = eyes;
   const headMinX = Math.min(...head.map((p) => p[0]));
   const hairPivot = Math.min(fb.x0, eyeX) - 2; // 이보다 왼쪽(뒤쪽) 머리카락이 날려요
   const headCx = Math.round((Math.min(...head.map((p) => p[0])) + Math.max(...head.map((p) => p[0]))) / 2);
@@ -312,6 +313,11 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     }
     if (sw && !sw.behind) armAndSword();
     if (o.blade && !o.blade.behind) blade();
+    // o.eyes: 머리를 바꾸지 않은 그림에도 같은 눈을 찍어요 (줄인 그림은 눈이 뭉개져서)
+    if (o.eyes && box !== fb) {
+      const ex = box.x1 - (eyesArt[0].length - 1), ey = box.y1 - 4;
+      eyesArt.forEach((row, j) => [...row].forEach((ch, i) => ch !== "." && s.set(ex + i + M, ey + j + M, HAND[ch])));
+    }
     // 늘어나면서 생긴 1픽셀 틈 메우기 (뒤쪽 영역만)
     const lim = Math.max(hairPivot, capePivot) + dx + M;
     for (let y = 1; y < s.h - 13; y++)
@@ -319,6 +325,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
         if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y) && (s.get(x, y - 1) || s.get(x, y + 1))) s.set(x, y, s.get(x - 1, y));
     s.ax = headCx + dx + M - (o.step ?? 0); // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요. step: 앞으로 내딛기
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
+    s.ay -= SRC.sink?.[name] ?? 0; // 발바닥보다 아래로 내려간 칼끝만큼 발 위치를 올려요
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
   // 쓰러짐: 추가 동작 시트의 누운 그림을 그대로 (머리 방향이 달라 머리는 바꾸지 않아요)
@@ -340,16 +347,10 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // 점프·착지·맞음: 사용자가 준 추가 동작 시트(assets/ref/hero-motions2.png) 맨 아래 줄을 참고로 뽑은 그림
     land: [one("crouch", "idle1", { src: "f2" })], // 착지: 무릎을 굽혀 웅크림
     jump: [one("air", "jumpUp", { src: "f2" }), one("jumpPrep", "jumpDown", { src: "f2" })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
-    // 베기 6단계 (사용자가 모은 참고 자료: 공격할 때 몸 전체가 움직이고, 휘두르는 순간엔 칼 대신 큰 궤적, 마무리 자세를 잠깐 유지)
-    //   몸 그림은 추가 동작 시트 셋째 줄(f3): 몸을 낮춘 자세 → 팔을 앞으로. 칼은 45도 단위로만
-    attack: [
-      one("ready0", "idle1", { src: "f3", blade: { auto: true, ang: Math.PI * 0.75, behind: true } }), // 1 젖히기: 몸을 낮추고 칼을 몸 뒤로 낮게 뺌
-      one("ready2", "idle1", { src: "f3", blade: { rel: [1, 4], ang: -Math.PI / 4 } }),                // 2 높이 들기: 얼굴 앞쪽에서 칼을 위로 치켜듦
-      one("push0", "attack", { src: "f3", step: 1 }),                                                  // 3 휘두르기: 칼은 궤적 속에
-      one("push2", "attack", { src: "f3", step: 2 }),                                                  // 4 베기 (맞는 순간)
-      one("push2", "attack", { src: "f3", step: 2, blade: { auto: true, ang: 0 } }),                   // 5 마무리: 칼을 앞으로 뻗은 채 멈춤
-      one("push1", "idle1", { src: "f3", step: 1, blade: { auto: true, ang: Math.PI / 4 } }),          // 6 거두기
-    ],
+    // 베기 6단계: OpenArt 로 만든 베기 시트(assets/ref/hero-slash-ai.png)를 줄인 그림 (tools/hero-slash.py → f4)
+    //   사용자 동작 시트를 기준 그림으로 넣어 같은 얼굴·옷·낡은 철검으로 그렸어요. 팔·칼이 머리 위로 올라가서 머리는 바꾸지 않아요
+    //   1 젖히기(칼을 몸 뒤로 낮게) → 2 치켜들기(머리 위) → 3 내려치기 → 4 베기(앞으로 깊게 내딛음, 맞는 순간) → 5 마무리(칼끝을 낮게) → 6 거두기
+    attack: ["s0", "s1", "s2", "s3", "s4", "s5"].map((n) => one(n, "attack", { src: "f4", keepHead: true, eyes: true })),
     hurt: [one("hurt", "hurt", { src: "f2" })],
     down: [lying],
   };

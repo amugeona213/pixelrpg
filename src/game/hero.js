@@ -100,6 +100,22 @@ const REF_LEGS = [
 ];
 // 참고 GIF 에서 몸이 1px 내려앉는 장면 (2번, 6번)
 const WALK_DOWN = [0, 1, 0, 0, 0, 1, 0, 0, 0, 0];
+// 걷기 말고 다른 동작도 같은 다리 디자인으로 (참고 GIF 와 같은 그림체로 손으로 찍음, GIF 처럼 왼쪽 보는 방향으로 적고 그릴 때 뒤집어요)
+const STAND_LEGS = [ // 서기: 두 발을 어깨너비로 모아 딛기
+  ".........lll.jjj........",
+  ".........lll.jkk........",
+  ".........jjj.jkk........",
+  ".........jjj..kkj.......",
+  "........aaa...bbb.......",
+  "........aaa...bbbb......",
+];
+const POSE_LEGS = {
+  stand: STAND_LEGS,
+  lunge: REF_LEGS[0],   // 베기: 크게 벌린 걸음 자세 (몸이 앞으로 실려요)
+  rise: REF_LEGS[3],    // 점프 올라갈 때: 한쪽 무릎을 들어 올림
+  fall: REF_LEGS[7],    // 떨어질 때: 다리를 내리며 착지 준비
+  hurt: REF_LEGS[1],    // 맞음: 뒤로 밀리며 다리가 모임
+};
 /** 칼 그리기: 손(hx, hy)에서 각도 ang 으로. 손잡이·금색 날밑·두 줄 칼날(밝음+그늘)·외곽선 */
 function drawSword(s, hx, hy, ang, len = 17) {
   const c = Math.cos(ang), n = Math.sin(ang), px = -n, py = c; // px,py: 칼날 수직 방향(아래쪽)
@@ -236,7 +252,8 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       for (let y = h - LEG_ROWS_REF; y < h; y++) for (let x = 0; x < w; x++) if (gr[y][x]) xs.push(x);
       const c = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
       // 참고 GIF 캐릭터는 왼쪽을 보고 있어서, 오른쪽을 보는 주인공에 맞게 좌우를 뒤집어요
-      const rows = REF_LEGS[o.legs].map((r) => [...r.replace(/[hi]/g, ".")].reverse().join(""));
+      const src = typeof o.legs === "number" ? REF_LEGS[o.legs] : POSE_LEGS[o.legs];
+      const rows = src.map((r) => [...r.replace(/[hi]/g, ".")].reverse().join(""));
       const lx = c - (REF_LEGS[0][0].length - 1 - LEG_CX_REF) + M, ly = h - LEG_ROWS_REF + M;
       // 외곽선 먼저 (다리 바깥 한 칸, 비어 있는 곳만)
       rows.forEach((r, yy) => [...r].forEach((ch, xx) => {
@@ -263,23 +280,25 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
-  const lying = one("idle0").rotated();
+  const lying = one("idle0", "idle0", { legs: "stand" }).rotated();
   const [x0, , x1, y1] = lying.bounds();
   lying.ax = Math.round((x0 + x1) / 2);
   lying.ay = y1 + 1;
   FRAMES[g] = {
-    idle: [one("idle0"), one("idle1")],
-    blink: [one("idle0", "idle0", { blink: true })], // 눈 깜빡임
+    // 모든 동작이 걷기와 같은 다리 디자인 (POSE_LEGS)
+    idle: [one("idle0", "idle0", { legs: "stand" }), one("idle1", "idle1", { legs: "stand" })],
+    blink: [one("idle0", "idle0", { blink: true, legs: "stand" })], // 눈 깜빡임
     // (다리를 합성한 중간 그림은 허리 선이 깨지고 픽셀이 떨려서 쓰지 않아요)
     // 걷기 8단계 (사용자가 준 참고 GIF: 장마다 0.1초, 발 닿으면 1px 내려앉고 발이 떨어지면 몸 전체가 1px 떠요)
     //   시트 4장 각각을 "강한 순간 + 이어지는 순간" 두 장으로: 닿기(내려앉음) → 닿기, 엇갈림(뜸) → 엇갈림
     //   다리는 참고 GIF 10장을 그대로 따왔어요. 윗몸은 시트 걷기 4장을 순서대로 (팔이 다리와 반대로 흔들려요)
     walk: REF_LEGS.map((_, i) =>
       one(["walk0", "walk0", "walk0", "walk1", "walk1", "walk2", "walk2", "walk2", "walk3", "walk3"][i], "wk" + "ABCDEFGHAB"[i], { legs: i, upperDy: WALK_DOWN[i] }),
-    ),    land: [one("idle0", "idle1", { upperDy: 2 })], // 착지: 무릎 굽힘
-    jump: [one("jump", "jumpUp"), one("jump", "jumpDown")], // 올라갈 때, 떨어질 때 (머리카락·망토가 반대로 날려요)
-    attack: SWING.map((sw, i) => one("attack", i < 2 ? "idle1" : "attack", { swing: sw })),
-    hurt: [one("hurt")],
+    ),
+    land: [one("idle0", "idle1", { upperDy: 2, legs: "stand" })], // 착지: 윗몸이 다리 위로 내려앉아 무릎 굽힘
+    jump: [one("jump", "jumpUp", { legs: "rise" }), one("jump", "jumpDown", { legs: "fall" })], // 올라갈 때, 떨어질 때
+    attack: SWING.map((sw, i) => one("attack", i < 2 ? "idle1" : "attack", { swing: sw, legs: "lunge" })),
+    hurt: [one("hurt", "hurt", { legs: "hurt" })],
     down: [lying],
   };
 }

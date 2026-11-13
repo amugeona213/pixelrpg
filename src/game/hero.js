@@ -171,6 +171,10 @@ function drawArm(s, sx, sy, hx, hy) {
 const M = 8; // 판 가장자리 여백 (머리를 옮겨 붙일 때 잘리지 않게)
 
 const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const isSteel = (hex) => {
+  const [r, g, b] = rgbOf(hex);
+  return Math.max(r, g, b) - Math.min(r, g, b) < 36 && r > 70;
+};
 const isSkin = (hex) => {
   const [r, g, b] = rgbOf(hex);
   return r > 215 && g > 180 && r - b > 22;
@@ -240,6 +244,9 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // o.src: 다른 시트에서 뽑은 그림 (f2 = 추가 동작 시트의 점프·착지·맞음·쓰러짐)
     const SRC = o.src ? HERO_ART[o.src] : art;
     const gr = grid(SRC.frames[name], SRC.pal), w = gr[0].length, h = gr.length;
+    // o.erase: [x0, y0, x1, y1, 색] 범위의 픽셀을 그 색으로 바꿔요 (뽑은 그림에서 잘못된 부분 지우기)
+    for (const [ex0, ey0, ex1, ey1, col] of o.erase ?? [])
+      for (let y = ey0; y <= ey1; y++) for (let x = ex0; x <= ex1; x++) if (gr[y]?.[x]) gr[y][x] = col;
     const sw = o.swing ?? null;
     const [sway, lift] = WIND[windKey] ?? [0, 0];
     const s = new Sheet(w + M * 2 + (sw || o.blade ? 14 : 0), h + M, 0, h + M);
@@ -281,6 +288,16 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
         s.set(nx + M, ny + M + (isLeg ? 0 : up), color(gr[y][x]));
       }
     }
+    // o.keepSword: 머리를 바꿀 때 턱 위쪽의 칼(회색 쇠)은 남겨요 (머리 뒤로 넘어간 칼끝)
+    if (o.keepSword && !o.keepHead)
+      for (let y = 0; y <= box.y1; y++) for (let x = 0; x < w; x++) if (gr[y][x] && isSteel(gr[y][x])) s.set(x + M, y + M, color(gr[y][x]));
+    // o.hand: [x, y] 칼 손잡이에 손(장갑)을 하나 더 쥐여 줘요 (두 손으로 칼 잡기). 팔은 들어 올린 팔과 겹쳐 보여요
+    if (o.hand) {
+      const [gx, gy] = o.hand, glove = [[0, 0, HAND.l], [1, 0, HAND.l], [0, 1, HAND.N], [1, 1, HAND.l], [2, 1, HAND.N], [1, 2, HAND.N]];
+      for (const [x, y] of glove) for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]])
+        if (!glove.some((q) => q[0] === x + ox && q[1] === y + oy)) s.set(gx + x + ox + M, gy + y + oy + M, HAND.k);
+      for (const [x, y, c] of glove) s.set(gx + x + M, gy + y + M, c);
+    }
     const armAndSword = () => {
       const [sx, sy] = ATTACK.shoulder, [hx, hy] = sw.hand;
       if (!sw.smear) drawSword(s, hx + M, hy + M, sw.ang);
@@ -316,13 +333,15 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // o.eyes: 머리를 바꾸지 않은 그림에도 같은 눈을 찍어요 (줄인 그림은 눈이 뭉개져서)
     if (o.eyes && box !== fb) {
       const ex = box.x1 - (eyesArt[0].length - 1), ey = box.y1 - 4;
-      eyesArt.forEach((row, j) => [...row].forEach((ch, i) => ch !== "." && s.set(ex + i + M, ey + j + M, HAND[ch])));
+      // 얼굴(살색)과 원래 눈(어두운 색) 자리에만 찍어요 → 얼굴 앞을 지나는 팔 위에는 눈이 그려지지 않아요
+      const onFace = (x, y) => { const c = gr[y]?.[x]; return c && (isSkin(c) || rgbOf(c).reduce((a, b) => a + b) < 240); };
+      eyesArt.forEach((row, j) => [...row].forEach((ch, i) => ch !== "." && onFace(ex + i, ey + j) && s.set(ex + i + M, ey + j + M, HAND[ch])));
     }
     // 늘어나면서 생긴 1픽셀 틈 메우기 (뒤쪽 영역만)
     const lim = Math.max(hairPivot, capePivot) + dx + M;
     for (let y = 1; y < s.h - 13; y++)
       for (let x = 1; x < lim; x++)
-        if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y) && (s.get(x, y - 1) || s.get(x, y + 1))) s.set(x, y, s.get(x - 1, y));
+        if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y)) s.set(x, y, s.get(x - 1, y)); // 세로로 한 줄 전체가 빈 틈도 메워요
     s.ax = headCx + dx + M - (o.step ?? 0); // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요. step: 앞으로 내딛기
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
     s.ay -= SRC.sink?.[name] ?? 0; // 발바닥보다 아래로 내려간 칼끝만큼 발 위치를 올려요
@@ -350,7 +369,16 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // 베기 6단계: OpenArt 로 만든 베기 시트(assets/ref/hero-slash-ai.png)를 줄인 그림 (tools/hero-slash.py → f4)
     //   사용자 동작 시트를 기준 그림으로 넣어 같은 얼굴·옷·낡은 철검으로 그렸어요. 팔·칼이 머리 위로 올라가서 머리는 바꾸지 않아요
     //   1 젖히기(칼을 몸 뒤로 낮게) → 2 치켜들기(머리 위) → 3 내려치기 → 4 베기(앞으로 깊게 내딛음, 맞는 순간) → 5 마무리(칼끝을 낮게) → 6 거두기
-    attack: ["s0", "s1", "s2", "s3", "s4", "s5"].map((n) => one(n, "attack", { src: "f4", keepHead: true, eyes: true })),
+    //   머리가 가려지지 않는 장(1·4·5·6)은 서기·걷기와 같은 머리로 바꾸고, 칼을 머리 위로 든 장(2·3)은 그림 머리에 같은 눈만 찍어요
+    attack: [
+      one("s0", "attack", { src: "f4", keepSword: true }),
+      one("s1", "attack", { src: "f4", keepHead: true, eyes: true }),
+      // 3: 가슴 앞의 빈 주먹을 지우고, 칼 손잡이에 손을 하나 더 쥐여 두 손으로 잡아요
+      one("s2", "attack", { src: "f4", keepHead: true, eyes: true, erase: [[22, 37, 26, 41, "#1b1c36"]], hand: [18, 19] }),
+      one("s3", "attack", { src: "f4", keepSword: true }),
+      one("s4", "attack", { src: "f4", keepSword: true }),
+      one("s5", "attack", { src: "f4", keepSword: true }),
+    ],
     hurt: [one("hurt", "hurt", { src: "f2" })],
     down: [lying],
   };

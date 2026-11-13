@@ -88,7 +88,8 @@ export class Player {
   attack(world) {
     const def = OLD_SWORD;
     this.cd.attack = def.cooldown;
-    const act = createAct(def.mod, { x: this.x, y: this.y, flip: this.facing < 0, seed: 1 + Math.floor(Math.random() * 999) });
+    // 베기 궤적은 캐릭터보다 크게 (참고 자료처럼). 그림만 커지고 맞는 범위(hitbox)는 그대로예요
+    const act = createAct(def.mod, { x: this.x, y: this.y, flip: this.facing < 0, radius: 52, seed: 1 + Math.floor(Math.random() * 999) });
     act.onHit = () => world.meleeHit(this, def);
     this.action = { def, act, speed: def.speed * this.mods.atkSpeed };
     world.count("swings");

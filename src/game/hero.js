@@ -232,6 +232,20 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // 몸: 턱 아래만 (머리는 기준 머리로 바꿔요). 망토(몸 뒤쪽)는 점프할 때 날려요
     const capePivot = box.x0 - 4, cape = windKey.startsWith("jump") ? [Math.ceil(sway / 2), Math.sign(lift) * 2] : [0, 0];
     const E = ATTACK.erase;
+    // o.blade: 몸 그림(f3)에 칼만 쥐여 줘요. auto = 앞으로 뻗은 손(몸 가운데 높이의 가장 오른쪽 픽셀), rel = 얼굴 오른쪽 아래 기준
+    //   behind = 몸 뒤에 (몸보다 먼저 그려요)
+    const blade = () => {
+      const B = o.blade;
+      let hx, hy;
+      if (B.auto) {
+        let best = -1;
+        for (let y = Math.floor(h * 0.5); y < Math.floor(h * 0.78); y++)
+          for (let x = w - 1; x > best; x--) if (gr[y][x]) { best = x; hy = y; break; }
+        hx = best;
+      } else [hx, hy] = [box.x1 + B.rel[0], box.y1 + B.rel[1]];
+      drawSword(s, hx + M, hy + M, B.ang);
+    };
+    if (o.blade?.behind) blade();
     // o.keepHead: 머리를 바꾸지 않고 그림 전체를 그대로 (누운 모습처럼 머리 방향이 다를 때)
     for (let y = o.keepHead ? 0 : box.y1 + 1; y < h; y++) {
       const isLeg = y >= legTop;
@@ -268,18 +282,20 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
         }
       }));
       s.art(rows, LEG_PAL, lx, ly);
-    }    if (sw?.behind) armAndSword();
+    }
+    if (sw?.behind) armAndSword();
     for (const [x, y, c] of o.keepHead ? [] : o.blink ? headBlink : head) {
       const [nx, ny] = blow(x, y, hairPivot, headMinX, sway, lift);
       s.set(nx + dx + M, ny + dy + M, c);
     }
     if (sw && !sw.behind) armAndSword();
+    if (o.blade && !o.blade.behind) blade();
     // 늘어나면서 생긴 1픽셀 틈 메우기 (뒤쪽 영역만)
     const lim = Math.max(hairPivot, capePivot) + dx + M;
     for (let y = 1; y < s.h - 13; y++)
       for (let x = 1; x < lim; x++)
         if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y) && (s.get(x, y - 1) || s.get(x, y + 1))) s.set(x, y, s.get(x - 1, y));
-    s.ax = headCx + dx + M; // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요
+    s.ax = headCx + dx + M - (o.step ?? 0); // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요. step: 앞으로 내딛기
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
@@ -302,7 +318,16 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // 점프·착지·맞음: 사용자가 준 추가 동작 시트(assets/ref/hero-motions2.png) 맨 아래 줄을 참고로 뽑은 그림
     land: [one("crouch", "idle1", { src: "f2" })], // 착지: 무릎을 굽혀 웅크림
     jump: [one("air", "jumpUp", { src: "f2" }), one("jumpPrep", "jumpDown", { src: "f2" })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
-    attack: SWING.map((sw, i) => one("attack", i < 2 ? "idle1" : "attack", { swing: sw, legs: "lunge" })),
+    // 베기 6단계 (사용자가 모은 참고 자료: 공격할 때 몸 전체가 움직이고, 휘두르는 순간엔 칼 대신 큰 궤적, 마무리 자세를 잠깐 유지)
+    //   몸 그림은 추가 동작 시트 셋째 줄(f3): 몸을 낮춘 자세 → 팔을 앞으로. 칼은 45도 단위로만
+    attack: [
+      one("ready0", "idle1", { src: "f3", blade: { auto: true, ang: Math.PI * 0.75, behind: true } }), // 1 젖히기: 몸을 낮추고 칼을 몸 뒤로 낮게 뺌
+      one("ready2", "idle1", { src: "f3", blade: { rel: [1, 4], ang: -Math.PI / 4 } }),                // 2 높이 들기: 얼굴 앞쪽에서 칼을 위로 치켜듦
+      one("push0", "attack", { src: "f3", step: 1 }),                                                  // 3 휘두르기: 칼은 궤적 속에
+      one("push2", "attack", { src: "f3", step: 2 }),                                                  // 4 베기 (맞는 순간)
+      one("push2", "attack", { src: "f3", step: 2, blade: { auto: true, ang: 0 } }),                   // 5 마무리: 칼을 앞으로 뻗은 채 멈춤
+      one("push1", "idle1", { src: "f3", step: 1, blade: { auto: true, ang: Math.PI / 4 } }),          // 6 거두기
+    ],
     hurt: [one("hurt", "hurt", { src: "f2" })],
     down: [lying],
   };

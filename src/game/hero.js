@@ -209,6 +209,20 @@ function faceBox(g) {
   return best && best.n >= 8 ? best : null;
 }
 
+// 베기 3프레임: 들어 올린 팔의 흰 소매가 옷깃에 끊겨 있던 두 줄(세로 35~37)을 이어서 조끼까지 내려오게. 그 아래 동그란 흰 부분은 갈색 조끼로
+const S2_SLEEVE = (() => {
+  const a = "#fdfbfd", c = "#cdacb7", k = "#292138"; // 소매 흰색, 소매 그늘, 외곽선
+  const L = "#7d5154", V = "#70474d", D = "#63434a";  // 갈색 조끼
+  return [
+    [21, 35, a], [22, 35, a], [23, 35, c],
+    [20, 36, k], [21, 36, a], [22, 36, a], [23, 36, c],
+    [20, 37, k], [21, 37, c], [22, 37, a], [23, 37, a], [24, 37, c],
+    // 겨드랑이 아래 동그란 흰 부분 → 갈색 조끼 (밝음 L, 가운데 V, 그늘 D)
+    [22, 38, L], [23, 38, L], [24, 38, V], [25, 38, V],
+    [22, 39, V], [23, 39, L], [24, 39, V], [25, 39, D],
+    [23, 40, V], [24, 40, D],
+  ];
+})();
 const FRAMES = {};
 for (const g of ["f"]) { // 주인공은 여자 한 명
   const art = HERO_ART[g];
@@ -247,6 +261,8 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // o.erase: [x0, y0, x1, y1, 색] 범위의 픽셀을 그 색으로 바꿔요 (뽑은 그림에서 잘못된 부분 지우기)
     for (const [ex0, ey0, ex1, ey1, col] of o.erase ?? [])
       for (let y = ey0; y <= ey1; y++) for (let x = ex0; x <= ex1; x++) if (gr[y]?.[x]) gr[y][x] = col;
+    // o.paint: [x, y, 색] 한 칸씩 찍기 (뽑은 그림의 끊긴 곳 잇기)
+    for (const [px_, py_, col] of o.paint ?? []) if (gr[py_]) gr[py_][px_] = col;
     const sw = o.swing ?? null;
     const [sway, lift] = WIND[windKey] ?? [0, 0];
     const s = new Sheet(w + M * 2 + (sw || o.blade ? 14 : 0), h + M, 0, h + M);
@@ -374,7 +390,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       one("s0", "attack", { src: "f4", keepSword: true }),
       one("s1", "attack", { src: "f4", keepHead: true, eyes: true }),
       // 3: 가슴 앞의 빈 주먹을 지우고, 칼 손잡이에 손을 하나 더 쥐여 두 손으로 잡아요
-      one("s2", "attack", { src: "f4", keepHead: true, eyes: true, erase: [[22, 37, 26, 41, "#1b1c36"]], hand: [18, 19] }),
+      one("s2", "attack", { src: "f4", keepHead: true, eyes: true, paint: S2_SLEEVE }),
       one("s3", "attack", { src: "f4", keepSword: true }),
       one("s4", "attack", { src: "f4", keepSword: true }),
       one("s5", "attack", { src: "f4", keepSword: true }),

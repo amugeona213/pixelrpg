@@ -420,15 +420,13 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
         }
       }));
       s.art(rows, LEG_PAL, lx, ly);
-      // 다리와 몸 사이 틈 메우기: 다리 맨 윗칸 위가 비어 있고 3칸 안에 몸(치마)이 있으면, 그 사이를 다리 맨 윗칸 색으로 이어요
+      // 다리와 몸 사이 틈 메우기: 치마와 다리 맨 윗칸 사이에 딱 1줄 빈 이음새만 다리 맨 윗칸 색으로 이어요
+      //   (2줄 이상 빈 곳은 다리 바깥 테두리와 망토 사이의 원래 빈틈이라 그대로 둬요)
       for (let x = lx - 1; x <= lx + rows[0].length; x++) {
         let yt = -1;
         for (let y = ly; y < ly + 3; y++) if (s.get(x, y)) { yt = y; break; }
-        if (yt < 0 || s.get(x, yt - 1)) continue;
-        let yb = -1;
-        for (let y = yt - 2; y >= yt - 4; y--) if (s.get(x, y)) { yb = y; break; }
-        if (yb < 0) continue;
-        for (let y = yb + 1; y < yt; y++) s.set(x, y, s.get(x, yt));
+        if (yt < 0 || s.get(x, yt - 1) || !s.get(x, yt - 2)) continue;
+        s.set(x, yt - 1, s.get(x, yt));
       }
     }
     if (sw?.behind) armAndSword();

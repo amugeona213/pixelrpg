@@ -214,7 +214,9 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
    * 한 프레임. o: { legsFrom: 다리를 가져올 다른 프레임 이름, upperDy: 윗몸을 아래로 누르는 픽셀, swing: SWING 단계, blink: 눈 감음 }
    */
   const one = (name, windKey = name, o = {}) => {
-    const gr = grid(F[name], pal), w = gr[0].length, h = gr.length;
+    // o.src: 다른 시트에서 뽑은 그림 (f2 = 추가 동작 시트의 점프·착지·맞음·쓰러짐)
+    const SRC = o.src ? HERO_ART[o.src] : art;
+    const gr = grid(SRC.frames[name], SRC.pal), w = gr[0].length, h = gr.length;
     const sw = o.swing ?? null;
     const [sway, lift] = WIND[windKey] ?? [0, 0];
     const s = new Sheet(w + M * 2 + (sw ? 14 : 0), h + M, 0, h + M);
@@ -230,7 +232,8 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // 몸: 턱 아래만 (머리는 기준 머리로 바꿔요). 망토(몸 뒤쪽)는 점프할 때 날려요
     const capePivot = box.x0 - 4, cape = windKey.startsWith("jump") ? [Math.ceil(sway / 2), Math.sign(lift) * 2] : [0, 0];
     const E = ATTACK.erase;
-    for (let y = box.y1 + 1; y < h; y++) {
+    // o.keepHead: 머리를 바꾸지 않고 그림 전체를 그대로 (누운 모습처럼 머리 방향이 다를 때)
+    for (let y = o.keepHead ? 0 : box.y1 + 1; y < h; y++) {
       const isLeg = y >= legTop;
       if (isLeg && o.legsFrom) continue;
       if (o.legs != null && y >= h - LEG_ROWS_REF) continue; // 참고 GIF 에서 따온 다리로 바꿔요
@@ -266,7 +269,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       }));
       s.art(rows, LEG_PAL, lx, ly);
     }    if (sw?.behind) armAndSword();
-    for (const [x, y, c] of o.blink ? headBlink : head) {
+    for (const [x, y, c] of o.keepHead ? [] : o.blink ? headBlink : head) {
       const [nx, ny] = blow(x, y, hairPivot, headMinX, sway, lift);
       s.set(nx + dx + M, ny + dy + M, c);
     }
@@ -280,7 +283,8 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
-  const lying = one("idle0", "idle0", { legs: "stand" }).rotated();
+  // 쓰러짐: 추가 동작 시트의 누운 그림을 그대로 (머리 방향이 달라 머리는 바꾸지 않아요)
+  const lying = one("down", "idle0", { src: "f2", keepHead: true });
   const [x0, , x1, y1] = lying.bounds();
   lying.ax = Math.round((x0 + x1) / 2);
   lying.ay = y1 + 1;
@@ -295,10 +299,11 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     walk: REF_LEGS.map((_, i) =>
       one(["walk0", "walk0", "walk0", "walk1", "walk1", "walk2", "walk2", "walk2", "walk3", "walk3"][i], "wk" + "ABCDEFGHAB"[i], { legs: i, upperDy: WALK_DOWN[i] }),
     ),
-    land: [one("idle0", "idle1", { upperDy: 2, legs: "stand" })], // 착지: 윗몸이 다리 위로 내려앉아 무릎 굽힘
-    jump: [one("jump", "jumpUp", { legs: "rise" }), one("jump", "jumpDown", { legs: "fall" })], // 올라갈 때, 떨어질 때
+    // 점프·착지·맞음: 사용자가 준 추가 동작 시트(assets/ref/hero-motions2.png) 맨 아래 줄을 참고로 뽑은 그림
+    land: [one("crouch", "idle1", { src: "f2" })], // 착지: 무릎을 굽혀 웅크림
+    jump: [one("air", "jumpUp", { src: "f2" }), one("jumpPrep", "jumpDown", { src: "f2" })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
     attack: SWING.map((sw, i) => one("attack", i < 2 ? "idle1" : "attack", { swing: sw, legs: "lunge" })),
-    hurt: [one("hurt", "hurt", { legs: "hurt" })],
+    hurt: [one("hurt", "hurt", { src: "f2" })],
     down: [lying],
   };
 }

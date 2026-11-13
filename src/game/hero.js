@@ -37,6 +37,14 @@ const EYES = {
     "rssssssssr",
     ".sssTTsss.",
   ],
+  // 맞았을 때: 눈을 질끈 감은 > < 모양
+  fHurt: [
+    "ssssssssss",
+    "skssssssks",
+    "ssksssskss",
+    "rksssssskr",
+    ".sssTTsss.",
+  ],
   m: [
     "kkssskks",
     "EEsssEEs",
@@ -168,6 +176,71 @@ function drawArm(s, sx, sy, hx, hy) {
   s.set(hx, hy + 1, HAND.l);
   s.set(hx + 1, hy + 1, HAND.N);
 }
+const isBlade = (hex) => { // 칼날(밝은 회색 쇠): 색이 거의 없고 밝기 중간
+  const [r, g, b] = rgbOf(hex);
+  return Math.max(r, g, b) - Math.min(r, g, b) < 36 && r > 100 && r < 235;
+};
+/**
+ * 다리 색 바꾸기: area = { r: [x0, y0, x1, y1] 다리 자리, boot: 이 줄부터 장화 (또는 bootX: 이 칸부터 장화, 누운 그림),
+ *   bootRects: [[x0, y0, x1, y1]] 장화 줄 밖에 있는 발 (접힌 다리의 발 등) }
+ * 다리 자리 안의 갈색·분홍·흰 줄무늬 픽셀을 밝기에 따라 스타킹 3톤 / 장화 2톤으로. 망토(남색)와 칼(회색 쇠)은 그대로
+ */
+function recolorLegs(gr, area) {
+  const hex = (c) => "#" + [c >> 0 & 255, c >> 8 & 255, c >> 16 & 255].map((v) => v.toString(16).padStart(2, "0")).join("");
+  const P = Object.fromEntries(["k", "j", "l", "a", "b", "A"].map((ch) => [ch, hex(LEG_PAL[ch])]));
+  const [x0, y0, x1, y1] = area.r;
+  // 칼: 회색 쇠 픽셀이 20개 넘게 이어진 덩어리만 칼로 봐요 (다리 속 작은 회색 점은 다리로 칠해요)
+  const h = gr.length, w = gr[0].length, sword = new Set(), seen = new Set();
+  for (let sy = 0; sy < h; sy++) for (let sx = 0; sx < w; sx++) {
+    if (!gr[sy][sx] || !isBlade(gr[sy][sx]) || seen.has(sy * w + sx)) continue;
+    const st = [[sx, sy]], pts = [];
+    seen.add(sy * w + sx);
+    while (st.length) {
+      const [cx, cy] = st.pop();
+      pts.push(cy * w + cx);
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const nx = cx + ox, ny = cy + oy;
+        if (nx >= 0 && ny >= 0 && nx < w && ny < h && gr[ny][nx] && isBlade(gr[ny][nx]) && !seen.has(ny * w + nx)) { seen.add(ny * w + nx); st.push([nx, ny]); }
+      }
+    }
+    if (pts.length > 20) pts.forEach((k) => sword.add(k));
+  }
+  // 1) 칸마다 종류 정하기: A 외곽선, k 밝은 스타킹, j 스타킹, b 밝은 장화, a 장화 (null = 그대로 둠)
+  const T = {}, key = (x, y) => y * w + x;
+  const lumOf = (c) => { const [r, g, b] = rgbOf(c); return 0.3 * r + 0.59 * g + 0.11 * b; };
+  const inA = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const c = gr[y]?.[x];
+    if (!c || sword.has(key(x, y))) continue;
+    const [r, , b] = rgbOf(c), lum = lumOf(c);
+    const boot = (area.boot != null ? y >= area.boot : x >= area.bootX) ||
+      (area.bootRects ?? []).some(([bx0, by0, bx1, by1]) => x >= bx0 && x <= bx1 && y >= by0 && y <= by1); // 따로 지정한 발(접힌 다리 등)
+    const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([ox, oy]) => !gr[y + oy]?.[x + ox]);
+    if (lum < 30) { T[key(x, y)] = edge ? "A" : boot ? "a" : "dark"; continue; } // 테두리는 외곽선, 장화 속 검은 줄은 장화색
+    if (!boot && b > r + 4) continue; // 망토(남색)는 그대로
+    T[key(x, y)] = boot ? (lum < 75 ? "a" : "b") : lum < 105 ? "j" : "k";
+  }
+  // 2) 다리 속 검은 줄(주름·무늬)은 둘레가 거의 스타킹이면 스타킹으로 → 매끈하게
+  for (const k of Object.keys(T)) if (T[k] === "dark") {
+    const x = k % w, y = (k - x) / w;
+    const n = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([ox, oy]) => ["j", "k"].includes(T[key(x + ox, y + oy)])).length;
+    T[k] = n >= 3 ? "j" : "A";
+  }
+  // 3) 서기·걷기 다리처럼 매끈하게: 스타킹·장화 칸은 둘레 8칸에서 가장 많은 색으로 (두 번)
+  for (let pass = 0; pass < 2; pass++) {
+    const next = {};
+    for (const k of Object.keys(T)) {
+      const v = T[k];
+      if (v === "A") continue;
+      const x = k % w, y = (k - x) / w, group = v === "a" || v === "b" ? ["a", "b"] : ["j", "k"], cnt = { [group[0]]: 0, [group[1]]: 0 };
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) { const q = T[key(x + ox, y + oy)]; if (q in cnt) cnt[q]++; }
+      const best = cnt[group[0]] > cnt[group[1]] ? group[0] : cnt[group[1]] > cnt[group[0]] ? group[1] : v;
+      if (best !== v) next[k] = best;
+    }
+    Object.assign(T, next);
+  }
+  for (const [k, v] of Object.entries(T)) { const x = k % w, y = (k - x) / w; if (inA(x, y)) gr[y][x] = P[v]; }
+}
 const M = 8; // 판 가장자리 여백 (머리를 옮겨 붙일 때 잘리지 않게)
 
 const rgbOf = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -240,6 +313,11 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
   if (EYES[g + "Blink"]) EYES[g + "Blink"].forEach((row, j) => [...row].forEach((ch, i) => {
     if (ch !== ".") headBlink.push([eyeX + i, eyeY + j, HAND[ch]]);
   }));
+  // 맞았을 때 머리: 눈 자리만 > < 로
+  const headHurt = headBlink.slice(0, headBlink.length - (EYES[g + "Blink"] ?? []).join("").replace(/\./g, "").length);
+  (EYES[g + "Hurt"] ?? []).forEach((row, j) => [...row].forEach((ch, i) => {
+    if (ch !== ".") headHurt.push([eyeX + i, eyeY + j, HAND[ch]]);
+  }));
   const eyesArt = eyes;
   const headMinX = Math.min(...head.map((p) => p[0]));
   const hairPivot = Math.min(fb.x0, eyeX) - 2; // 이보다 왼쪽(뒤쪽) 머리카락이 날려요
@@ -263,6 +341,8 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       for (let y = ey0; y <= ey1; y++) for (let x = ex0; x <= ex1; x++) if (gr[y]?.[x]) gr[y][x] = col;
     // o.paint: [x, y, 색] 한 칸씩 찍기 (뽑은 그림의 끊긴 곳 잇기)
     for (const [px_, py_, col] of o.paint ?? []) if (gr[py_]) gr[py_][px_] = col;
+    // o.legPaint: 다리 모양은 그대로 두고 색만 서기·걷기 다리(남색 스타킹 + 갈색 장화)로 바꿔요
+    if (o.legPaint) recolorLegs(gr, o.legPaint);
     const sw = o.swing ?? null;
     const [sway, lift] = WIND[windKey] ?? [0, 0];
     const s = new Sheet(w + M * 2 + (sw || o.blade ? 14 : 0), h + M, 0, h + M);
@@ -340,7 +420,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       s.art(rows, LEG_PAL, lx, ly);
     }
     if (sw?.behind) armAndSword();
-    for (const [x, y, c] of o.keepHead ? [] : o.blink ? headBlink : head) {
+    for (const [x, y, c] of o.keepHead ? [] : o.blink ? headBlink : o.hurtFace ? headHurt : head) {
       const [nx, ny] = blow(x, y, hairPivot, headMinX, sway, lift);
       s.set(nx + dx + M, ny + dy + M, c);
     }
@@ -360,11 +440,23 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
         if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y)) s.set(x, y, s.get(x - 1, y)); // 세로로 한 줄 전체가 빈 틈도 메워요
     s.ax = headCx + dx + M - (o.step ?? 0); // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요. step: 앞으로 내딛기
     if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
+    // o.lean: 윗몸을 뒤로(왼쪽) 젖혀요. 머리 꼭대기는 lean 칸, 허리(다리 바로 위)는 0칸 → 맞고 뒤로 밀리는 모습
+    if (o.lean) {
+      const hip = h - LEG_ROWS_REF + M, px0 = s.px.slice();
+      s.px.fill(0);
+      for (let y = 0; y < s.h; y++) {
+        // 머리(턱 위)는 통째로 lean 칸, 턱~허리는 점점 줄어요 → 얼굴·눈 모양은 그대로
+        const chin = fb.y1 + dy + M;
+        const d = y <= chin ? o.lean : y < hip ? Math.round((o.lean * (hip - y)) / Math.max(1, hip - chin)) : 0;
+        for (let x = 0; x < s.w; x++) { const c = px0[y * s.w + x]; if (c) s.set(x - d, y, c); }
+      }
+      s.ax -= Math.round(o.lean / 2); // 머리가 뒤로 간 만큼 기준점도 조금
+    }
     s.ay -= SRC.sink?.[name] ?? 0; // 발바닥보다 아래로 내려간 칼끝만큼 발 위치를 올려요
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
   // 쓰러짐: 추가 동작 시트의 누운 그림을 그대로 (머리 방향이 달라 머리는 바꾸지 않아요)
-  const lying = one("down", "idle0", { src: "f2", keepHead: true });
+  const lying = one("down", "idle0", { src: "f2", keepHead: true, legPaint: { r: [31, 6, 44, 23], bootX: 39, bootRects: [[36, 8, 39, 11]] } });
   const [x0, , x1, y1] = lying.bounds();
   lying.ax = Math.round((x0 + x1) / 2);
   lying.ay = y1 + 1;
@@ -380,22 +472,23 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       one(["walk0", "walk0", "walk0", "walk1", "walk1", "walk2", "walk2", "walk2", "walk3", "walk3"][i], "wk" + "ABCDEFGHAB"[i], { legs: i, upperDy: WALK_DOWN[i] }),
     ),
     // 점프·착지·맞음: 사용자가 준 추가 동작 시트(assets/ref/hero-motions2.png) 맨 아래 줄을 참고로 뽑은 그림
-    land: [one("crouch", "idle1", { src: "f2" })], // 착지: 무릎을 굽혀 웅크림
-    jump: [one("air", "jumpUp", { src: "f2" }), one("jumpPrep", "jumpDown", { src: "f2" })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
+    land: [one("crouch", "idle1", { src: "f2", legPaint: { r: [12, 31, 32, 35], boot: 33 } })], // 착지: 무릎을 굽혀 웅크림
+    jump: [one("air", "jumpUp", { src: "f2", legPaint: { r: [10, 31, 28, 40], boot: 38, bootRects: [[22, 34, 27, 37]] } }), one("jumpPrep", "jumpDown", { src: "f2", legPaint: { r: [14, 32, 32, 38], boot: 36 } })], // 올라갈 때(공중), 떨어질 때(다리를 내려 착지 준비)
     // 베기 6단계: OpenArt 로 만든 베기 시트(assets/ref/hero-slash-ai.png)를 줄인 그림 (tools/hero-slash.py → f4)
     //   사용자 동작 시트를 기준 그림으로 넣어 같은 얼굴·옷·낡은 철검으로 그렸어요. 팔·칼이 머리 위로 올라가서 머리는 바꾸지 않아요
     //   1 젖히기(칼을 몸 뒤로 낮게) → 2 치켜들기(머리 위) → 3 내려치기 → 4 베기(앞으로 깊게 내딛음, 맞는 순간) → 5 마무리(칼끝을 낮게) → 6 거두기
     //   머리가 가려지지 않는 장(1·4·5·6)은 서기·걷기와 같은 머리로 바꾸고, 칼을 머리 위로 든 장(2·3)은 그림 머리에 같은 눈만 찍어요
     attack: [
-      one("s0", "attack", { src: "f4", keepSword: true }),
-      one("s1", "attack", { src: "f4", keepHead: true, eyes: true }),
+      one("s0", "attack", { src: "f4", legPaint: { r: [14, 30, 42, 38], boot: 36 }, keepSword: true }),
+      one("s1", "attack", { src: "f4", legPaint: { r: [10, 54, 34, 63], boot: 61 }, keepHead: true, eyes: true }),
       // 3: 가슴 앞의 빈 주먹을 지우고, 칼 손잡이에 손을 하나 더 쥐여 두 손으로 잡아요
-      one("s2", "attack", { src: "f4", keepHead: true, eyes: true, paint: S2_SLEEVE }),
-      one("s3", "attack", { src: "f4", keepSword: true }),
-      one("s4", "attack", { src: "f4", keepSword: true }),
-      one("s5", "attack", { src: "f4", keepSword: true }),
+      one("s2", "attack", { src: "f4", legPaint: { r: [6, 49, 32, 57], boot: 55 }, keepHead: true, eyes: true, paint: S2_SLEEVE }),
+      one("s3", "attack", { src: "f4", legPaint: { r: [2, 31, 28, 39], boot: 37 }, keepSword: true }),
+      one("s4", "attack", { src: "f4", legPaint: { r: [6, 30, 32, 39], boot: 37 }, keepSword: true }),
+      one("s5", "attack", { src: "f4", legPaint: { r: [13, 35, 30, 40], boot: 39 }, keepSword: true }),
     ],
-    hurt: [one("hurt", "hurt", { src: "f2" })],
+    // 맞음: 서기 그림에서 윗몸을 뒤로 젖히고(lean), 눈을 질끈 감고(> <), 한 발이 뒤로 밀린 다리, 머리카락·망토는 앞으로 날려요
+    hurt: [one("idle0", "hurt", { legs: "hurt", hurtFace: true, lean: 3 })],
     down: [lying],
   };
 }

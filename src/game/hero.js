@@ -296,6 +296,8 @@ const S2_SLEEVE = (() => {
     [23, 40, V], [24, 40, D],
   ];
 })();
+// 걷기 1~3(시트 걷기 첫 그림): 흰 치마가 한 덩어리 → 다른 걷기처럼 가운데 2칸을 어두운 주름으로 갈라요
+const WALK0_SKIRT = [[23, 31, "#392433"], [24, 31, "#493955"], [23, 32, "#392433"], [24, 32, "#493955"]];
 const FRAMES = {};
 for (const g of ["f"]) { // 주인공은 여자 한 명
   const art = HERO_ART[g];
@@ -469,7 +471,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     //   시트 4장 각각을 "강한 순간 + 이어지는 순간" 두 장으로: 닿기(내려앉음) → 닿기, 엇갈림(뜸) → 엇갈림
     //   다리는 참고 GIF 10장을 그대로 따왔어요. 윗몸은 시트 걷기 4장을 순서대로 (팔이 다리와 반대로 흔들려요)
     walk: REF_LEGS.map((_, i) =>
-      one(["walk0", "walk0", "walk0", "walk1", "walk1", "walk2", "walk2", "walk2", "walk3", "walk3"][i], "wk" + "ABCDEFGHAB"[i], { legs: i, upperDy: WALK_DOWN[i] }),
+      one(["walk0", "walk0", "walk0", "walk1", "walk1", "walk2", "walk2", "walk2", "walk3", "walk3"][i], "wk" + "ABCDEFGHAB"[i], { legs: i, upperDy: WALK_DOWN[i], paint: i < 3 ? WALK0_SKIRT : undefined }),
     ),
     // 점프·착지·맞음: 사용자가 준 추가 동작 시트(assets/ref/hero-motions2.png) 맨 아래 줄을 참고로 뽑은 그림
     land: [one("crouch", "idle1", { src: "f2", legPaint: { r: [12, 31, 32, 35], boot: 33 } })], // 착지: 무릎을 굽혀 웅크림

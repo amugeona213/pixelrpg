@@ -47,6 +47,8 @@ const EYES = {
 const WIND = {
   idle0: [0, 0], idle1: [1, 0],
   walk0: [2, 0], walk1: [1, 1], walk2: [2, 0], walk3: [1, -1],
+  // 걷기 8단계용: 머리카락·망토가 걸음마다 번갈아 흔들려요 (참고 GIF 의 외투 자락처럼)
+  wkA: [2, -1], wkB: [3, 0], wkC: [1, 1], wkD: [2, 0], wkE: [2, -1], wkF: [3, 0], wkG: [1, 1], wkH: [2, 0],
   jumpUp: [1, -2], jumpDown: [2, 3],
   attack: [2, 1], hurt: [-1, 2],
 };
@@ -216,6 +218,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       for (let x = 1; x < lim; x++)
         if (!s.get(x, y) && s.get(x - 1, y) && s.get(x + 1, y) && (s.get(x, y - 1) || s.get(x, y + 1))) s.set(x, y, s.get(x - 1, y));
     s.ax = headCx + dx + M; // 머리 가운데가 기준 → 프레임이 바뀌어도 머리가 흔들리지 않아요
+    if (o.lift) s.ay += o.lift; // 몸 전체를 위로 (발이 땅에서 떨어지는 장면)
     return s;
   };  // 쓰러짐: 서 있는 그림(통일된 머리)을 눕혀요
   const lying = one("idle0").rotated();
@@ -225,9 +228,15 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
   FRAMES[g] = {
     idle: [one("idle0"), one("idle1")],
     blink: [one("idle0", "idle0", { blink: true })], // 눈 깜빡임
-    // 걷기: 시트 4장 그대로 (다리를 합성한 중간 그림은 허리 선이 깨지고 픽셀이 떨려서 뺐어요).
-    // 발이 땅에 닿는 장면(0, 2)은 몸이 1픽셀 내려앉고 조금 더 오래, 다리가 엇갈리는 장면(1, 3)은 짧게
-    walk: [one("walk0", "walk0", { upperDy: 1 }), one("walk1"), one("walk2", "walk2", { upperDy: 1 }), one("walk3")],
+    // (다리를 합성한 중간 그림은 허리 선이 깨지고 픽셀이 떨려서 쓰지 않아요)
+    // 걷기 8단계 (사용자가 준 참고 GIF: 장마다 0.1초, 발 닿으면 1px 내려앉고 발이 떨어지면 몸 전체가 1px 떠요)
+    //   시트 4장 각각을 "강한 순간 + 이어지는 순간" 두 장으로: 닿기(내려앉음) → 닿기, 엇갈림(뜸) → 엇갈림
+    walk: [
+      one("walk0", "wkA", { upperDy: 1 }), one("walk0", "wkB"),
+      one("walk1", "wkC", { lift: 1 }), one("walk1", "wkD"),
+      one("walk2", "wkE", { upperDy: 1 }), one("walk2", "wkF"),
+      one("walk3", "wkG", { lift: 1 }), one("walk3", "wkH"),
+    ],
     land: [one("idle0", "idle1", { upperDy: 2 })], // 착지: 무릎 굽힘
     jump: [one("jump", "jumpUp"), one("jump", "jumpDown")], // 올라갈 때, 떨어질 때 (머리카락·망토가 반대로 날려요)
     attack: SWING.map((sw, i) => one("attack", i < 2 ? "idle1" : "attack", { swing: sw })),
@@ -244,7 +253,8 @@ FRAMES.m = FRAMES.f;
  */
 // 걷기: 시간 대신 "걸은 거리"로 그림을 넘겨요 → 발이 미끄러지지 않아요.
 // 한 걸음 사이클 36px: 닿기 10px, 엇갈림 8px, 닿기 10px, 엇갈림 8px (78px/s 로 걸으면 약 133ms / 100ms)
-const WALK_STEP = [10, 8, 10, 8], WALK_CYCLE = 36;
+// 8단계 x 8px = 한 사이클 64px (걷는 속도 78px/s 에서 한 장 약 0.1초, 참고 GIF 와 같은 박자)
+const WALK_STEP = [8, 8, 8, 8, 8, 8, 8, 8], WALK_CYCLE = 64;
 // 서기(숨쉬기): 400ms 들이쉬고 250ms 내쉬기. 약 3.2초마다 0.12초 눈 깜빡임
 const IDLE_MS = [0.4, 0.25], BLINK_EVERY = 3.2, BLINK_LEN = 0.12;
 function stepIndex(steps, total, v) {

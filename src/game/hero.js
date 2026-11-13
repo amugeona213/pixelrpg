@@ -17,6 +17,8 @@ import { HERO_ART, SYMS } from "./heroArt.js";
 const HAND = palette({
   k: "#1a121e", s: "#f6dcd0", r: "#eaa6a0", T: "#c08a78", E: "#1c2550", e: "#4a63c0", w: "#ffffff",
   N: "#8b5a3a", l: "#5f3c2a", g: "#ecc864", G: "#c08a40", M: "#f2f6fb", m: "#a8b4c8", n: "#6b7588",
+  // 낡은 철검: A 밝은 면, B 가운데, C 그늘, R 녹, D 쇠 날밑·자루끝, F 날밑 밝은 곳
+  A: "#ccd2d8", B: "#959fae", C: "#626c80", R: "#8f5a3a", D: "#474e5e", F: "#7c8698",
 });
 // 눈 (오른쪽을 보는 얼굴). 얼굴의 오른쪽 아래(턱 앞)에 맞춰 그려요. 남자는 얼굴이 좁아서 눈 사이가 가까워요
 const EYES = {
@@ -116,18 +118,38 @@ const POSE_LEGS = {
   fall: REF_LEGS[7],    // 떨어질 때: 다리를 내리며 착지 준비
   hurt: REF_LEGS[1],    // 맞음: 뒤로 밀리며 다리가 모임
 };
-/** 칼 그리기: 손(hx, hy)에서 각도 ang 으로. 손잡이·금색 날밑·두 줄 칼날(밝음+그늘)·외곽선 */
-function drawSword(s, hx, hy, ang, len = 17) {
-  const c = Math.cos(ang), n = Math.sin(ang), px = -n, py = c; // px,py: 칼날 수직 방향(아래쪽)
+/**
+ * 낡은 철검 (무기를 고르기 전까지 쓰는 칼). 손(hx, hy)에서 각도 ang 으로, 45도 단위로만 그려요 (도트가 깨지지 않게).
+ * 모양: 둥근 쇠 자루끝 · 낡은 가죽 손잡이 · 짧은 쇠 날밑 · 3줄 칼날(밝은 면 / 가운데 / 그늘) · 뾰족한 칼끝
+ * 낡은 느낌: 탁한 회색 쇠, 녹슨 점 2개, 이가 빠진 자국 1개
+ */
+function drawSword(s, hx, hy, ang) {
+  const q = Math.round(ang / (Math.PI / 4)) * (Math.PI / 4);
+  const ux = Math.round(Math.cos(q)), uy = Math.round(Math.sin(q)); // 칼이 뻗는 방향 (한 칸씩)
+  const diag = ux !== 0 && uy !== 0;
+  const vx = -uy, vy = ux;                          // 날밑 방향 (칼과 직각)
+  const [lx, ly] = ux === 0 ? [-1, 0] : [0, -1];    // 밝은 면 = 위쪽 (빛이 위에서 와요)
+  const [tx, ty] = ux !== 0 ? [ux, 0] : [0, uy];    // 날밑 두께 방향
+  const G = diag ? 2 : 3, N = diag ? 10 : 15, b0 = 3; // 대각선은 한 칸이 1.4픽셀이라 칸 수를 줄여요
   const pts = new Map();
-  const put = (x, y, col) => pts.set(`${Math.round(x)},${Math.round(y)}`, col);
-  for (let i = -3; i <= 0; i += 0.5) put(hx + c * i, hy + n * i, i < -2 ? HAND.N : HAND.l); // 손잡이
-  for (let j = -2; j <= 2; j += 0.5) put(hx + c * 1 + px * j, hy + n * 1 + py * j, Math.abs(j) > 1.4 ? HAND.G : HAND.g); // 날밑
-  for (let i = 2; i <= len; i += 0.5) {
-    put(hx + c * i, hy + n * i, HAND.M);
-    if (i < len - 1.5) put(hx + c * i + px, hy + n * i + py, HAND.m);
+  const put = (x, y, col) => pts.set(`${x},${y}`, col);
+  const at = (a) => [hx + ux * a, hy + uy * a];
+  // 자루끝 + 손잡이 (가죽 끈이 번갈아 감긴 모양)
+  put(...at(-G - 1), HAND.D);
+  for (let a = -G; a <= 0; a++) put(...at(a), (a + G) % 2 ? HAND.N : HAND.l);
+  // 칼날 (날밑 바로 앞 한 칸은 좁은 목)
+  if (diag) put(...at(2), HAND.B);
+  const nick = b0 + Math.floor(N * 0.55), rust1 = b0 + 2, rust2 = b0 + Math.floor(N * 0.72);
+  for (let i = 0; i < N; i++) {
+    const a = b0 + i, [x, y] = at(a), left = N - 1 - i; // left: 칼끝까지 남은 칸
+    put(x, y, left === 0 ? HAND.A : a === rust2 ? HAND.R : HAND.B);
+    if (left >= 1 && a !== nick) put(x + lx, y + ly, HAND.A);
+    if (left >= 2) put(x - lx, y - ly, a === rust1 ? HAND.R : HAND.C);
   }
-  put(hx + c * (len + 1), hy + n * (len + 1), HAND.M); // 칼끝
+  // 날밑 (두 줄 두께, 가운데가 밝아요)
+  const [gx, gy] = at(1);
+  for (let j = -2; j <= 2; j++)
+    for (let k = 0; k < 2; k++) put(gx + vx * j + tx * k, gy + vy * j + ty * k, j === 0 ? HAND.F : HAND.D);
   // 외곽선 먼저 (칼 모양 바깥 1칸)
   for (const key of pts.keys()) {
     const [x, y] = key.split(",").map(Number);
@@ -219,7 +241,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     const gr = grid(SRC.frames[name], SRC.pal), w = gr[0].length, h = gr.length;
     const sw = o.swing ?? null;
     const [sway, lift] = WIND[windKey] ?? [0, 0];
-    const s = new Sheet(w + M * 2 + (sw ? 14 : 0), h + M, 0, h + M);
+    const s = new Sheet(w + M * 2 + (sw || o.blade ? 14 : 0), h + M, 0, h + M);
     const box = faceBox(gr) ?? fb;
     const dx = box.x1 - fb.x1, up = o.upperDy ?? 0, dy = box.y1 - fb.y1 + up;
     const legTop = h - LEG_ROWS;

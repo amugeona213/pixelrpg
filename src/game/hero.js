@@ -235,8 +235,9 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       const xs = [];
       for (let y = h - LEG_ROWS_REF; y < h; y++) for (let x = 0; x < w; x++) if (gr[y][x]) xs.push(x);
       const c = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
-      const rows = REF_LEGS[o.legs].map((r) => r.replace(/[hi]/g, "."));
-      const lx = c - LEG_CX_REF + M, ly = h - LEG_ROWS_REF + M;
+      // 참고 GIF 캐릭터는 왼쪽을 보고 있어서, 오른쪽을 보는 주인공에 맞게 좌우를 뒤집어요
+      const rows = REF_LEGS[o.legs].map((r) => [...r.replace(/[hi]/g, ".")].reverse().join(""));
+      const lx = c - (REF_LEGS[0][0].length - 1 - LEG_CX_REF) + M, ly = h - LEG_ROWS_REF + M;
       // 외곽선 먼저 (다리 바깥 한 칸, 비어 있는 곳만)
       rows.forEach((r, yy) => [...r].forEach((ch, xx) => {
         if (ch === ".") return;

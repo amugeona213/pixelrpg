@@ -77,6 +77,31 @@ const SWING = [
 const LEG_ROWS = 12; // 그림 아래쪽 이 줄 수만큼이 다리
 const SLEEVE = color("#e6dfe8"); // 흰 소매
 
+// ---- 걷기 다리 (손으로 찍음). 원본 그림의 다리는 픽셀이 뭉개져 있어서, 걸을 때는 치마 아래 6줄을 지우고 장화를 다시 그려요.
+// 참고: 사용자가 준 걷기 GIF (벌림 → 모음 → 지나가기(뒷발 들림) → 반대로 벌림, 한 장 0.1초)
+const BOOT_PAL = palette({ A: "#131025", s: "#452833", q: "#54333f", l: "#69414b", j: "#8a5a5e" });
+const BOOT = [
+  "AqqA..",
+  "AqlA..",
+  "AqlqA.",
+  "AqljqA",
+  "AsqqqA",
+  ".AAAA.",
+];
+const BOOT_BACK = { l: "q", j: "l", q: "s" }; // 뒤쪽 다리는 한 단계 어둡게
+const BOOT_ROWS = 6;
+// 8장: [뒷다리 x, 앞다리 x, 뒷다리 들림, 앞다리 들림] (다리 가운데 기준 픽셀)
+const WALK_LEGS = [
+  [-6, 4, 0, 0], // 1 벌림 (앞발 닿기)
+  [-4, 3, 0, 0], // 2 모음
+  [-2, 1, 1, 0], // 3 지나가기: 뒷발이 들려 앞으로
+  [1, -1, 2, 0], // 4 뒷발이 앞으로 넘어감
+  [4, -5, 0, 0], // 5 반대로 벌림 (뒷발이 앞에 닿음)
+  [3, -4, 0, 0], // 6 모음
+  [1, -2, 0, 1], // 7 지나가기: 앞발이 들려
+  [-1, 1, 0, 2], // 8 앞발이 앞으로 넘어감
+];
+
 /** 칼 그리기: 손(hx, hy)에서 각도 ang 으로. 손잡이·금색 날밑·두 줄 칼날(밝음+그늘)·외곽선 */
 function drawSword(s, hx, hy, ang, len = 17) {
   const c = Math.cos(ang), n = Math.sin(ang), px = -n, py = c; // px,py: 칼날 수직 방향(아래쪽)
@@ -194,6 +219,7 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     for (let y = box.y1 + 1; y < h; y++) {
       const isLeg = y >= legTop;
       if (isLeg && o.legsFrom) continue;
+      if (o.legs && y >= h - BOOT_ROWS) continue; // 손으로 찍은 장화로 바꿔요
       for (let x = 0; x < w; x++) {
         if (!gr[y][x]) continue;
         if (sw && x >= E[0] && y >= E[1] && x <= E[2] && y <= E[3]) continue;
@@ -206,6 +232,15 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
       if (!sw.smear) drawSword(s, hx + M, hy + M, sw.ang);
       drawArm(s, sx + M, sy + M, hx + M, hy + M);
     };
+    if (o.legs) {
+      // 다리 가운데: 원본 다리 줄의 픽셀 가운데
+      const xs = [];
+      for (let y = h - BOOT_ROWS; y < h; y++) for (let x = 0; x < w; x++) if (gr[y][x]) xs.push(x);
+      const c = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+      const [bx, fx, bl, fl] = o.legs;
+      s.art(BOOT, BOOT_PAL, c + bx - 3 + M, h - BOOT_ROWS - bl + M, { swap: BOOT_BACK });
+      s.art(BOOT, BOOT_PAL, c + fx - 3 + M, h - BOOT_ROWS - fl + M);
+    }
     if (sw?.behind) armAndSword();
     for (const [x, y, c] of o.blink ? headBlink : head) {
       const [nx, ny] = blow(x, y, hairPivot, headMinX, sway, lift);
@@ -231,11 +266,12 @@ for (const g of ["f"]) { // 주인공은 여자 한 명
     // (다리를 합성한 중간 그림은 허리 선이 깨지고 픽셀이 떨려서 쓰지 않아요)
     // 걷기 8단계 (사용자가 준 참고 GIF: 장마다 0.1초, 발 닿으면 1px 내려앉고 발이 떨어지면 몸 전체가 1px 떠요)
     //   시트 4장 각각을 "강한 순간 + 이어지는 순간" 두 장으로: 닿기(내려앉음) → 닿기, 엇갈림(뜸) → 엇갈림
+    //   다리는 8장 모두 다르게 손으로 찍고(WALK_LEGS), 발이 닿는 1·5번은 몸이 1px 내려앉아요
     walk: [
-      one("walk0", "wkA", { upperDy: 1 }), one("walk0", "wkB"),
-      one("walk1", "wkC", { lift: 1 }), one("walk1", "wkD"),
-      one("walk2", "wkE", { upperDy: 1 }), one("walk2", "wkF"),
-      one("walk3", "wkG", { lift: 1 }), one("walk3", "wkH"),
+      one("walk0", "wkA", { upperDy: 1, legs: WALK_LEGS[0] }), one("walk0", "wkB", { legs: WALK_LEGS[1] }),
+      one("walk1", "wkC", { legs: WALK_LEGS[2] }), one("walk1", "wkD", { legs: WALK_LEGS[3] }),
+      one("walk2", "wkE", { upperDy: 1, legs: WALK_LEGS[4] }), one("walk2", "wkF", { legs: WALK_LEGS[5] }),
+      one("walk3", "wkG", { legs: WALK_LEGS[6] }), one("walk3", "wkH", { legs: WALK_LEGS[7] }),
     ],
     land: [one("idle0", "idle1", { upperDy: 2 })], // 착지: 무릎 굽힘
     jump: [one("jump", "jumpUp"), one("jump", "jumpDown")], // 올라갈 때, 떨어질 때 (머리카락·망토가 반대로 날려요)

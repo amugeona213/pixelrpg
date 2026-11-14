@@ -223,8 +223,11 @@ export class World {
   draw(r) {
     // 화면에 그릴 카메라 위치(정수): 주인공의 화면 위치 = round(주인공 x - 카메라 x) 가 되게 맞춰요.
     // round(주인공 x) - round(카메라 x) 로 따로 반올림하면, 카메라가 따라오는 동안 주인공이 1칸씩 좌우로 떨려요 (걸을 때 지직거림)
-    const px = this.player.x;
-    const cam = this.drawCamX = Math.round(px) - Math.round(px - this.camX);
+    // 폰처럼 프레임 간격이 들쭉날쭉하면 (주인공 x - 카메라 x) 가 0.5 근처에서 흔들려 또 떨려요 →
+    // 화면 속 자리는 0.8칸 넘게 벗어날 때만 옮겨요 (조금 늦게 따라가지만 떨리지 않아요)
+    const px = this.player.x, want = px - this.camX;
+    if (this.screenX == null || Math.abs(want - this.screenX) > 0.8) this.screenX = Math.round(want);
+    const cam = this.drawCamX = clamp(Math.round(px) - this.screenX, 0, Math.max(0, this.width - VIEW_W));
     drawBackground(r.bg, cam);
     r.begin(cam);
     const F = r.frame;

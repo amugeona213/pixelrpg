@@ -225,6 +225,7 @@ window.game = {
       map: world?.mapId ?? null, ui: ui.kind, x: p ? Math.round(p.x) : null, hp: p ? Math.ceil(p.hp) : null,
       gold: profile?.gold ?? null, tutorial: profile?.tutorial ?? null, act: p?.state?.() ?? null,
       margin: p ? p.hp / p.maxHp : null,
+      sx: p && world.drawCamX != null ? Math.round(p.x) - world.drawCamX : null, // 화면 속 주인공 x (흔들림 점검용)
     };
   },
   step(n = 1) {

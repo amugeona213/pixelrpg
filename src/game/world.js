@@ -221,8 +221,12 @@ export class World {
 
   // ---- 그리기 (뒤에서 앞으로)
   draw(r) {
-    drawBackground(r.bg, this.camX);
-    r.begin(this.camX);
+    // 화면에 그릴 카메라 위치(정수): 주인공의 화면 위치 = round(주인공 x - 카메라 x) 가 되게 맞춰요.
+    // round(주인공 x) - round(카메라 x) 로 따로 반올림하면, 카메라가 따라오는 동안 주인공이 1칸씩 좌우로 떨려요 (걸을 때 지직거림)
+    const px = this.player.x;
+    const cam = this.drawCamX = Math.round(px) - Math.round(px - this.camX);
+    drawBackground(r.bg, cam);
+    r.begin(cam);
     const F = r.frame;
     for (const t of this.torches) t.draw(F);
     for (const o of this.props) o.draw(F);
